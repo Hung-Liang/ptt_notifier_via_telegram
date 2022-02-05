@@ -37,7 +37,7 @@ def getDetails(soup):
     for t in ts:
         if t.find('div','title').a!=None:
             like=t.find('div','nrec').text.replace('\n','')
-            title=t.find('div','title').text.replace('\n','').replace('&','')
+            title=t.find('div','title').text.replace('\n','').replace('&','').replace('#','')
             href=t.find('div','title').a.get('href')
             detailList.append([like,title,href])
 
@@ -66,6 +66,7 @@ def sendNewToTelegram(result,forum):
         for item in result:
             msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]} </a>\n-------------------------------------\n"
         return msg
+    return ''
 
 def concatenateMsg(msgs):
     allMsg=[]
@@ -76,12 +77,13 @@ def concatenateMsg(msgs):
             allMsg.append(temp)
             temp=msg
         else:
-            temp=temp+msg+'\n\n\n'
+            temp=temp+msg+'\n'
 
     allMsg.append(temp)
 
     for m in allMsg:
-        telegram_bot_sendtext(m)
+        if m!='':
+            telegram_bot_sendtext(m)
 
 if __name__ == '__main__':
 
@@ -89,7 +91,7 @@ if __name__ == '__main__':
                 ["marvel",40],
                 ["CFantasy",10],
                 ["C_Chat",20],
-                ["Gossiping",70],
+                ["Gossiping",60],
                 ["Beauty",30],
                 ["Lifeismoney",20]
             ]
@@ -98,7 +100,7 @@ if __name__ == '__main__':
     counter=0
 
     while True:
-        
+
         msgs=[]
 
         for i in range(len(subForum)):
