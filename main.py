@@ -18,7 +18,12 @@ def telegram_bot_sendtext(bot_message):
         
     res=requests.get(send_text)
     if res.status_code==400:
-        print(bot_message)
+        f=open('log.txt','a',encoding='utf-8')
+        f.write(str(res.status_code)+'\n')
+        f.write(str(res.text)+'\n')
+        f.write(bot_message+'\n\n')
+        telegram_bot_sendtext('Please Check Log, Message Bad Request')
+        f.close()
         
 
 def fetch(url):
@@ -68,9 +73,7 @@ def sendNewToTelegram(result,forum):
     if len(result)!=0:
         msg=f'<b>{forum.upper()} </b>\n\n-------------------------------------\n'
         for item in result:
-            # msg=msg+f'{item[1]}\nhttps://www.ptt.cc{item[2]}\n\n-----------------\n\n'
             msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]} </a>\n-------------------------------------\n"
-        # telegram_bot_sendtext(msg)
         return msg
 
 def concatenateMsg(msgs):
@@ -116,7 +119,7 @@ if __name__ == '__main__':
             except Exception as e:
                 print(e)
             sleep(3)
-            
+
         counter+=1
         concatenateMsg(msgs)
         print(f'Fetch {counter} Times')
