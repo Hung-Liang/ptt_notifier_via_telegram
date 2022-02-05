@@ -16,13 +16,16 @@ def telegram_bot_sendtext(bot_message):
     for cid in bot_chatID:
         send_text = f'https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={cid}&parse_mode=HTML&text={bot_message}' 
         
-    requests.get(send_text)
+    res=requests.get(send_text)
+    print(res.status_code)
+    print(res.text)
         
 
 def fetch(url):
     headers={'User-Agent': "Googlebot/2.1 (+http://www.google.com/bot.html)"}
-    resp=requests.get(url,headers=headers).text
-    return resp
+    resp=requests.get(url,headers=headers)
+    print(resp.status_code)
+    return resp.text
 
 def getDetails(soup):
     detailList=[]
@@ -68,7 +71,23 @@ def sendNewToTelegram(result,forum):
         for item in result:
             # msg=msg+f'{item[1]}\nhttps://www.ptt.cc{item[2]}\n\n-----------------\n\n'
             msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]}</a>\n-------------------------------------\n"
-        telegram_bot_sendtext(msg)
+        # telegram_bot_sendtext(msg)
+        return msg
+
+def concatenateMsg(msgs):
+    allMsg=[]
+    temp=''
+    for msg in msgs:
+        
+        if len(temp+msg)>4096:
+            allMsg.append(temp)
+            temp=msg
+        else:
+            temp=temp+msg+'\n\n\n'
+
+    for m in allMsg:
+        telegram_bot_sendtext(m)
+        # print(msg)
 
 if __name__ == '__main__':
 
@@ -79,6 +98,8 @@ if __name__ == '__main__':
 
     while True:
         
+        msgs=[]
+
         for i in range(len(subForum)):
             url=f'https://www.ptt.cc/bbs/{subForum[i]}/search?q=recommend%3A30'
 
@@ -86,8 +107,8 @@ if __name__ == '__main__':
                 soup=BeautifulSoup(fetch(url),'lxml')
                 newList=getDetails(soup)
                 result=compareOldAndNew(oldList[i],newList,subForum[i])
-                sendNewToTelegram(result,subForum[i])
-                
+                msg = sendNewToTelegram(result,subForum[i])
+                msgs.append(msg)
                 oldList[i]=oldList[i]+result
                 if len(oldList[i])>100:
                     oldList[i]=oldList[i][50:]
@@ -96,6 +117,7 @@ if __name__ == '__main__':
                 print(e)
             sleep(3)
         counter+=1
+        concatenateMsg(msgs)
         print(f'Fetch {counter} Times')
         sleep(1800)
                 
