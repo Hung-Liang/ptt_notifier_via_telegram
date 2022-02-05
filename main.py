@@ -64,10 +64,10 @@ def compareOldAndNew(oldList,newList,forum):
 
 def sendNewToTelegram(result,forum):
     if len(result)!=0:
-        msg=f'<b>{forum.upper()}</b>\n\n-----------------\n\n'
+        msg=f'<b>{forum.upper()}</b>\n\n-------------------------------------\n'
         for item in result:
             # msg=msg+f'{item[1]}\nhttps://www.ptt.cc{item[2]}\n\n-----------------\n\n'
-            msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]}</a>\n-----------------\n"
+            msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]}</a>\n-------------------------------------\n"
         telegram_bot_sendtext(msg)
 
 if __name__ == '__main__':
