@@ -17,14 +17,13 @@ def telegram_bot_sendtext(bot_message):
         send_text = f'https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={cid}&parse_mode=HTML&text={bot_message}' 
         
     res=requests.get(send_text)
-    print(res.status_code)
-    print(res.text)
+    if res.status_code==400:
+        print(bot_message)
         
 
 def fetch(url):
     headers={'User-Agent': "Googlebot/2.1 (+http://www.google.com/bot.html)"}
     resp=requests.get(url,headers=headers)
-    print(resp.status_code)
     return resp.text
 
 def getDetails(soup):
@@ -33,7 +32,7 @@ def getDetails(soup):
     for t in ts:
         if t.find('div','title').a!=None:
             like=t.find('div','nrec').text.replace('\n','')
-            title=t.find('div','title').text.replace('\n','')
+            title=t.find('div','title').text.replace('\n','').replace('&','')
             href=t.find('div','title').a.get('href')
             detailList.append([like,title,href])
 
@@ -67,10 +66,10 @@ def compareOldAndNew(oldList,newList,forum):
 
 def sendNewToTelegram(result,forum):
     if len(result)!=0:
-        msg=f'<b>{forum.upper()}</b>\n\n-------------------------------------\n'
+        msg=f'<b>{forum.upper()} </b>\n\n-------------------------------------\n'
         for item in result:
             # msg=msg+f'{item[1]}\nhttps://www.ptt.cc{item[2]}\n\n-----------------\n\n'
-            msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]}</a>\n-------------------------------------\n"
+            msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]} </a>\n-------------------------------------\n"
         # telegram_bot_sendtext(msg)
         return msg
 
@@ -85,9 +84,10 @@ def concatenateMsg(msgs):
         else:
             temp=temp+msg+'\n\n\n'
 
+    allMsg.append(temp)
+
     for m in allMsg:
         telegram_bot_sendtext(m)
-        # print(msg)
 
 if __name__ == '__main__':
 
@@ -116,6 +116,7 @@ if __name__ == '__main__':
             except Exception as e:
                 print(e)
             sleep(3)
+            
         counter+=1
         concatenateMsg(msgs)
         print(f'Fetch {counter} Times')
