@@ -44,7 +44,7 @@ def getDetails(soup):
     return detailList
 
 def compareOldAndNew(oldList,newList,forum):
-    wantItem=['switch','pchome','line']
+    
     result=[]
 
     for item in newList:
@@ -56,17 +56,8 @@ def compareOldAndNew(oldList,newList,forum):
                 judge=False
 
         if judge:
-            like=item[0] 
-
-            if like.isdigit():
-                like=int(like)
-            elif like=="爆":
-                like=100
-            else:
-                like=0
-            if ((any(x in item[1].lower() for x in wantItem) and forum=='Lifeismoney') or like > 20) and item[1] :
-                result.append(item)
-            
+            result.append(item)
+                
     return result
 
 def sendNewToTelegram(result,forum):
@@ -94,7 +85,14 @@ def concatenateMsg(msgs):
 
 if __name__ == '__main__':
 
-    subForum=["marvel","CFantasy",r"C_Chat","Gossiping","Beauty","Lifeismoney"]
+    subForum=[
+                ["marvel",40],
+                ["CFantasy",10],
+                ["C_Chat",20],
+                ["Gossiping",70],
+                ["Beauty",30],
+                ["Lifeismoney",20]
+            ]
 
     oldList=[[] for i in range(len(subForum))]
     counter=0
@@ -104,13 +102,13 @@ if __name__ == '__main__':
         msgs=[]
 
         for i in range(len(subForum)):
-            url=f'https://www.ptt.cc/bbs/{subForum[i]}/search?q=recommend%3A30'
+            url=f'https://www.ptt.cc/bbs/{subForum[i][0]}/search?q=recommend%3A{subForum[i][1]}'
 
             try:
                 soup=BeautifulSoup(fetch(url),'lxml')
                 newList=getDetails(soup)
-                result=compareOldAndNew(oldList[i],newList,subForum[i])
-                msg = sendNewToTelegram(result,subForum[i])
+                result=compareOldAndNew(oldList[i],newList,subForum[i][0])
+                msg = sendNewToTelegram(result,subForum[i][0])
                 msgs.append(msg)
                 oldList[i]=oldList[i]+result
                 if len(oldList[i])>100:
