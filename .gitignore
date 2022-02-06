@@ -1,4 +1,8 @@
+#env file
 .env
-test.py
-test.txt
-log.txt
+#Testing File
+test.*
+#log File
+log
+#old Data
+src/
