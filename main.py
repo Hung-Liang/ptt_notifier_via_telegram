@@ -122,7 +122,6 @@ if __name__ == '__main__':
                 ["Lifeismoney",20]
             ]
 
-    oldList=[[] for i in range(len(subForum))]
     counter=0
 
     initial()
