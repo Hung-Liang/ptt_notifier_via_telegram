@@ -17,14 +17,20 @@ def telegram_bot_sendtext(bot_message):
         send_text = f'https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={cid}&parse_mode=HTML&text={bot_message}' 
         
     res=requests.get(send_text)
-    if res.status_code==400:
+    writeLog(res,bot_message)
+        
+def writeLog(res,bot_message):
+    if res.status_code==400 and 'message must be non-empty' not in res.text:
         f=open('log.txt','a',encoding='utf-8')
         f.write(str(res.status_code)+'\n')
         f.write(str(res.text)+'\n')
         f.write(bot_message+'\n\n')
         telegram_bot_sendtext('Please Check Log, Message Bad Request')
         f.close()
-        
+
+def initialLog():
+    if os.path.exists('log.txt'):
+        os.remove('log.txt')
 
 def fetch(url):
     headers={'User-Agent': "Googlebot/2.1 (+http://www.google.com/bot.html)"}
@@ -99,8 +105,10 @@ if __name__ == '__main__':
     oldList=[[] for i in range(len(subForum))]
     counter=0
 
-    while True:
+    initialLog()
 
+    while True:
+        
         msgs=[]
 
         for i in range(len(subForum)):
