@@ -72,7 +72,7 @@ def sendNewToTelegram(result,forum):
     if len(result)!=0:
         msg=f'<b>{forum.upper()} </b>\n\n-------------------------------------\n'
         for item in result:
-            msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]}</a>\n-------------------------------------\n"
+            msg=msg+f"<a href='https://www.ptt.cc{item[2]}'><b>[{item[0]}] {item[1]}</b></a>\n-------------------------------------\n"
         return msg
     return ''
 
