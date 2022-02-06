@@ -1,4 +1,4 @@
-from re import sub
+from re import L, sub
 import requests
 from bs4 import BeautifulSoup
 from multiprocessing import Pool
@@ -21,16 +21,18 @@ def telegram_bot_sendtext(bot_message):
         
 def writeLog(res,bot_message):
     if res.status_code==400 and 'message must be non-empty' not in res.text:
-        f=open('log.txt','a',encoding='utf-8')
+        f=open('log','a',encoding='utf-8')
         f.write(str(res.status_code)+'\n')
         f.write(str(res.text)+'\n')
         f.write(bot_message+'\n\n')
         telegram_bot_sendtext('Please Check Log, Message Bad Request')
         f.close()
 
-def initialLog():
-    if os.path.exists('log.txt'):
-        os.remove('log.txt')
+def initial():
+    if os.path.exists('log'):
+        os.remove('log')
+    if not os.path.exists('src'):
+        os.mkdir('src')
 
 def fetch(url):
     headers={'User-Agent': "Googlebot/2.1 (+http://www.google.com/bot.html)"}
@@ -91,6 +93,21 @@ def concatenateMsg(msgs):
         if m!='':
             telegram_bot_sendtext(m)
 
+def writeJson(forum,data):
+    with open(f'src/{forum}.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+def loadJson(forum):
+    with open(f'src/{forum}.json', encoding='utf-8') as f:
+        data = json.load(f)
+    return data
+
+def touchFile(forum):
+    if not os.path.exists(f'src/{forum}.json'):
+        myJson={forum:[]}
+        writeJson(forum,myJson)
+        
+
 if __name__ == '__main__':
 
     subForum=[
@@ -105,25 +122,39 @@ if __name__ == '__main__':
     oldList=[[] for i in range(len(subForum))]
     counter=0
 
-    initialLog()
+    initial()
 
     while True:
-        
+
         msgs=[]
 
         for i in range(len(subForum)):
-            url=f'https://www.ptt.cc/bbs/{subForum[i][0]}/search?q=recommend%3A{subForum[i][1]}'
+
+            target=subForum[i][0]
+
+            url=f'https://www.ptt.cc/bbs/{target}/search?q=recommend%3A{subForum[i][1]}'
+
+            touchFile(target)
+            targetJson=loadJson(target)
+            oldList=targetJson[target]
 
             try:
                 soup=BeautifulSoup(fetch(url),'lxml')
                 newList=getDetails(soup)
-                result=compareOldAndNew(oldList[i],newList,subForum[i][0])
-                msg = sendNewToTelegram(result,subForum[i][0])
-                msgs.append(msg)
-                oldList[i]=oldList[i]+result
-                if len(oldList[i])>100:
-                    oldList[i]=oldList[i][50:]
                 
+                result=compareOldAndNew(oldList,newList,target)
+                
+                msg = sendNewToTelegram(result,target)
+                msgs.append(msg)
+                
+                oldList=oldList+result
+                
+                if len(oldList)>100:
+                    oldList=oldList[50:]
+
+                targetJson[target]=oldList
+                writeJson(target,targetJson)
+
             except Exception as e:
                 print(e)
             sleep(3)
