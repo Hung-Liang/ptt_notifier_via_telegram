@@ -12,8 +12,8 @@ def telegram_bot_sendtext(bot_message):
     for cid in bot_chatID:
         send_text = f'https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={cid}&parse_mode=HTML&text={bot_message}' 
         
-    res=requests.get(send_text)
-    writeLog(res,bot_message)
+        res=requests.get(send_text)
+        writeLog(res,bot_message)
         
 def writeLog(res,bot_message):
     if res.status_code==400 and 'message must be non-empty' not in res.text:
