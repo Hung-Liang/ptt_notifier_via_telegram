@@ -81,6 +81,9 @@ def concatenateMsg(msgs):
     temp=''
     for msg in msgs:
         
+        if msg=='':
+            continue
+
         if len(temp+msg)>4096:
             allMsg.append(temp)
             temp=msg
