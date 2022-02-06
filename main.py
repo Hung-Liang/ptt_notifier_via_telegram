@@ -45,7 +45,7 @@ def getDetails(soup):
     for t in ts:
         if t.find('div','title').a!=None:
             like=t.find('div','nrec').text.replace('\n','')
-            title=t.find('div','title').text.replace('\n','').replace('&','').replace('#','')
+            title=t.find('div','title').text.replace('\n','').replace('&','').replace('#','').replace('+','').replace('<','')
             href=t.find('div','title').a.get('href')
             detailList.append([like,title,href])
 
@@ -72,7 +72,7 @@ def sendNewToTelegram(result,forum):
     if len(result)!=0:
         msg=f'<b>{forum.upper()} </b>\n\n-------------------------------------\n'
         for item in result:
-            msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]} </a>\n-------------------------------------\n"
+            msg=msg+f"<a href='https://www.ptt.cc{item[2]}'>{item[1]}</a>\n-------------------------------------\n"
         return msg
     return ''
 
