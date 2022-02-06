@@ -6,3 +6,5 @@ test.*
 log
 #old Data
 src/
+#cache folder
+__pycache__/
