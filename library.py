@@ -64,7 +64,7 @@ def compareOldAndNew(oldList,newList,forum):
         judge=True
 
         for oldItem in oldList:
-            if item[1] in oldItem:
+            if item[2] in oldItem:
                 judge=False
 
         if judge:
