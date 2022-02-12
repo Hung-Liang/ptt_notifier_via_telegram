@@ -9,7 +9,11 @@ if __name__ == '__main__':
                 ["C_Chat",20],
                 ["Gossiping",60],
                 ["Beauty",30],
-                ["Lifeismoney",20]
+                ["Lifeismoney",20],
+                ["book",10],
+                ["movie",50],
+                ["Drama",10],
+                ["marriage",50]
             ]
 
     initial(subForum)
@@ -21,3 +25,4 @@ if __name__ == '__main__':
         notifier(subForum)
         counter+=1
         print(f'Fetch {counter} times...')
+        # sleep(20)
