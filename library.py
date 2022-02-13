@@ -4,16 +4,14 @@ from dotenv import load_dotenv
 load_dotenv()
 import os
 import json
+import subprocess
 
-def telegram_bot_sendtext(bot_message):
+def telegram_bot_sendtext(bot_message,user):
     tgToken=os.environ.get("tg_token")
     bot_token = tgToken
-    bot_chatID = json.loads(os.environ.get("chat_ID"))
-    for cid in bot_chatID:
-        send_text = f'https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={cid}&parse_mode=HTML&text={bot_message}' 
-        
-        res=requests.get(send_text)
-        writeLog(res,bot_message)
+    send_text = f'https://api.telegram.org/bot{bot_token}/sendMessage?chat_id={user}&parse_mode=HTML&text={bot_message}' 
+    res=requests.get(send_text)
+    writeLog(res,bot_message)
         
 def writeLog(res,bot_message):
     if res.status_code==400 and 'message must be non-empty' not in res.text:
@@ -24,9 +22,15 @@ def writeLog(res,bot_message):
         telegram_bot_sendtext('Please Check Log, Message Bad Request')
         f.close()
 
-def initial(subForum):
+def initial():
     removeLogAndCheckPath()
-    checkJson(subForum)
+    checkJson()
+
+def runListenBot():
+    subprocess.Popen(['python','listenBot.py'])
+
+def runNotifier():
+    subprocess.Popen(['python','main.py'])
 
 def removeLogAndCheckPath():
     if os.path.exists('log'):
@@ -34,9 +38,13 @@ def removeLogAndCheckPath():
     if not os.path.exists('src'):
         os.mkdir('src')
 
-def checkJson(subForum):
-    for forum in subForum:
-        touchFile(forum[0])
+def checkJson():
+    users = loadJson('users')
+    for user in users:
+        if not os.path.exists(f'src/{user}'):
+            os.mkdir(f'src/{user}')
+        for key in users[user]['boards']:
+            touchFile(key,f'src/{user}/')
 
 def fetch(url):
     headers={'User-Agent': "Googlebot/2.1 (+http://www.google.com/bot.html)"}
@@ -80,7 +88,7 @@ def sendNewToTelegram(result,forum):
         return msg
     return ''
 
-def concatenateMsg(msgs):
+def concatenateMsg(msgs,user):
     allMsg=[]
     temp=''
     for msg in msgs:
@@ -98,53 +106,82 @@ def concatenateMsg(msgs):
 
     for m in allMsg:
         if m!='':
-            telegram_bot_sendtext(m)
+            telegram_bot_sendtext(m,user)
 
-def writeJson(forum,data):
-    with open(f'src/{forum}.json', 'w', encoding='utf-8') as f:
+def writeJson(forum,data,path='src/'):
+    with open(f'{path}{forum}.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-def loadJson(forum):
-    with open(f'src/{forum}.json', encoding='utf-8') as f:
+def loadJson(forum,path='src/'):
+    with open(f'{path}{forum}.json', encoding='utf-8') as f:
         data = json.load(f)
     return data
 
-def touchFile(forum):
-    if not os.path.exists(f'src/{forum}.json'):
+def initialUser(uid,name):
+    users=loadJson('users')
+    if str(uid) in users:
+        return False
+    users[str(uid)]={'name':name,'boards':{}}
+    writeJson('users',users)
+    return True
+
+def createUserJson():
+    if not os.path.exists(f'src/users.json'):
+        writeJson('users',{})
+
+def updateUserJson(uid,infos,remove=False):
+    writeBool=True
+    users=loadJson('users')
+    if remove:
+        users[str(uid)]['boards'].pop(infos)
+    else:
+        if len(users[str(uid)]['boards'])<=10 or str(uid)==os.environ.get("admin_id"):
+            users[str(uid)]['boards'][infos[0]]=infos[1]
+        else:
+            writeBool=False
+
+    writeJson('users',users)
+    return writeBool
+
+def touchFile(forum,path='src/'):
+    if not os.path.exists(f'{path}{forum}.json'):
         myJson={forum:[]}
-        writeJson(forum,myJson)
+        writeJson(forum,myJson,path)
 
-def notifier(subForum):
-    msgs=[]
+def notifier():
+    
+    users=loadJson('users')
+    
+    for user in users:
+        msgs=[]
+        for key in users[user]['boards']:
 
-    for i in range(len(subForum)):
+            target=key
 
-        target=subForum[i][0]
+            url=f'https://www.ptt.cc/bbs/{target}/search?q=recommend%3A{users[user]["boards"][target]}'
 
-        url=f'https://www.ptt.cc/bbs/{target}/search?q=recommend%3A{subForum[i][1]}'
+            targetJson=loadJson(target,f'src/{user}/')
+            oldList=targetJson[target]
 
-        targetJson=loadJson(target)
-        oldList=targetJson[target]
+            try:
+                soup=BeautifulSoup(fetch(url),'lxml')
+                newList=getDetails(soup)
+                
+                result=compareOldAndNew(oldList,newList,target)
+                
+                msg = sendNewToTelegram(result,target)
+                msgs.append(msg)
+                
+                oldList=oldList+result
+                
+                if len(oldList)>100:
+                    oldList=oldList[50:]
 
-        try:
-            soup=BeautifulSoup(fetch(url),'lxml')
-            newList=getDetails(soup)
-            
-            result=compareOldAndNew(oldList,newList,target)
-            
-            msg = sendNewToTelegram(result,target)
-            msgs.append(msg)
-            
-            oldList=oldList+result
-            
-            if len(oldList)>100:
-                oldList=oldList[50:]
+                targetJson[target]=oldList
+                writeJson(target,targetJson,f'src/{user}/')
 
-            targetJson[target]=oldList
-            writeJson(target,targetJson)
+            except Exception as e:
+                print(e)
 
-        except Exception as e:
-            print(e)
-
-    concatenateMsg(msgs)
+        concatenateMsg(msgs,user)
             
