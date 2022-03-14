@@ -67,6 +67,25 @@ def pageTurner(bot, update):
     page = bot.callback_query.data.split(',')[1]
     bot.callback_query.message.edit_text(addMessage(), reply_markup=pageKeyboardMaker(int(page)))
 
+def stop(bot, update):
+    uid=bot.message.from_user.id
+    if str(uid)==os.environ.get("admin_id"):
+        bot.message.reply_text('Bot Shutting Down')
+        threading.Thread(target=shutdown).start()
+    else:
+        bot.message.reply_text('You do not have permission')
+
+def getUsers(bot, update):
+    uid=bot.message.from_user.id
+    if str(uid)==os.environ.get("admin_id"):
+        users=loadJson('users')
+        for key in users:
+            temp=users[key]['name']+'\n'
+            for b in users[key]['boards']:
+                temp=temp+b+' '+users[key]['boards'][b]+'\n'
+            
+            bot.message.reply_text(temp)
+
 def error(update, context):
     print(f'Update {update} caused error {context.error}')
 
@@ -160,13 +179,7 @@ def shutdown():
 def deleteUserMessage(name):
     return f'掰掰{name}'
 
-def stop(bot, update):
-    uid=bot.message.from_user.id
-    if str(uid)==os.environ.get("admin_id"):
-        bot.message.reply_text('Bot Shutting Down')
-        threading.Thread(target=shutdown).start()
-    else:
-        bot.message.reply_text('You do not have permission')
+
     
 ############################# Functions #########################################
 
@@ -185,6 +198,7 @@ updater.dispatcher.add_handler(CallbackQueryHandler(boardRegister,pattern='Board
 updater.dispatcher.add_handler(CallbackQueryHandler(confirmAndWrite,pattern='Confirm'))
 updater.dispatcher.add_handler(CallbackQueryHandler(deleteBoard,pattern='Delete'))
 updater.dispatcher.add_handler(CommandHandler('stop', stop))
+updater.dispatcher.add_handler(CommandHandler('users', getUsers))
 updater.dispatcher.add_error_handler(error)
 
 updater.start_polling()
