@@ -1,0 +1,4 @@
+bs4 == 0.0.1
+python_dotenv == 0.19.2
+python_telegram_bot == 13.11
+requests == 2.27.1
