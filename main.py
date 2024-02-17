@@ -1,13 +1,14 @@
-from time import time,sleep
-from library import initial,notifier,runListenBot
+from time import sleep, time
+from lib.notifier import notifier
 
 if __name__ == '__main__':
 
-    counter=0
-    runListenBot()
+    counter = 0
+
     while True:
         sleep(1800 - time() % 1800)
-        initial()
+
         notifier()
-        counter+=1
+
+        counter += 1
         print(f'Beta Fetch {counter} times...')

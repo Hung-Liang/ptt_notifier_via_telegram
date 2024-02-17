@@ -1,4 +1,4 @@
-# pttNotifierViaTelegram
+# ptt_notifier_via_telegram
 
 - 透過Telegram將熱門PTT文章傳給使用者
     - 根據不同版分門別類

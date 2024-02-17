@@ -1,10 +1,5 @@
-#env file
 .env
-#Testing File
-test*.*
-#log File
-log
-#old Data
-src/
-#cache folder
 __pycache__/
+/assets/user.json
+/assets/boards
+/logs
