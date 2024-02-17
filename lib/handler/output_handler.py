@@ -79,50 +79,46 @@ def compare_with_old(threads: list, old_threads: list):
     return new_threads
 
 
-def create_board_message(board: str, threads: list):
-    """Create the message for the board.
+def create_board_message(threads):
+    """Create the board message.
 
     Args:
-        `board`: The name of the board.
-        `threads`: The threads.
+        `threads` : The dictionary of threads. Contain multiple boards.
 
     Returns:
-        The message for the board."""
-    if len(threads) == 0:
-        return []
+        list: The list of the board message.
+    """
+    messages = []
 
     split_line = '\n-------------------------------------\n'
 
-    message = '<b>{}</b>\n{}'.format(board.upper(), split_line)
-    messages = []
+    message = ""
 
-    for thread in threads:
-        new_message = (
-            "<a href='https://www.ptt.cc{}'><b>[{}] {}</b></a>{}".format(
-                thread[2], thread[0], thread[1], split_line
-            )
-        )
+    for board in threads:
 
-        if len(new_message + message) >= 4096:
+        if len(threads[board]) == 0:
+            continue
+
+        if len(message + f'<b>{board.upper()}</b>\n{split_line}') >= 4096:
             messages.append(message)
-            message = '<b>{}</b>\n{}'.format(board.upper(), split_line)
-
-        message += new_message
-
-    messages.append(message)
-    return messages
-
-
-def trim_messages(messages: list):
-    trimmed_messages = []
-    current_message = ""
-
-    for message in messages:
-        if len(current_message + "\n" + message) >= 4096:
-            trimmed_messages.append(current_message)
-            current_message = message
         else:
-            current_message = current_message + "\n" + message
+            message += f'<b>{board.upper()}</b>\n{split_line}'
 
-    trimmed_messages.append(current_message)
-    return trimmed_messages
+        for thread in threads[board]:
+            new_message = (
+                f"<a href='https://www.ptt.cc{thread[2]}'><b>[{thread[0]}]"
+                f" {thread[1]}</b></a>{split_line}"
+            )
+
+            if len(new_message + message) >= 4096:
+                messages.append(message)
+                message = f'<b>{board.upper()}</b>\n{split_line}'
+
+            message += new_message
+
+        message += "\n"
+
+    if message != "":
+        messages.append(message)
+
+    return messages
