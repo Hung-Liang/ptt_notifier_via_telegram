@@ -16,9 +16,7 @@ class FakeResponse:
 
 
 def make_handler():
-    handler = TelegramHandler()
-    handler.token = '123:secret'
-    return handler
+    return TelegramHandler('123:secret')
 
 
 def test_send_message_posts_json(monkeypatch):
@@ -149,16 +147,3 @@ def test_long_rate_limit_is_not_waited(monkeypatch):
 
     assert sleeps == []
 
-
-def test_send_multiple_messages_reports_sent_count(monkeypatch):
-    responses = [FakeResponse(), FakeResponse(502, 'Bad Gateway')]
-    monkeypatch.setattr(
-        telegram_handler.requests,
-        'post',
-        lambda url, json, timeout: responses.pop(0),
-    )
-
-    with pytest.raises(TelegramSendError) as exc_info:
-        make_handler().send_multiple_messages(42, ['a', 'b', 'c'])
-
-    assert exc_info.value.sent == 1

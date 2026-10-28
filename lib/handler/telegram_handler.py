@@ -1,26 +1,16 @@
 import json
-import os
 import time
 
 import requests
-from dotenv import load_dotenv
 
 from lib.utils.logger import log, log_warning
-
-load_dotenv()
 
 
 class TelegramSendError(Exception):
     """Sending to Telegram failed; the message never contains the token.
 
     Raised only for failures worth retrying on the next run.
-
-    Attributes:
-        `sent`: Messages Telegram already accepted or rejected before the
-            failure, set by `send_multiple_messages`.
     """
-
-    sent = 0
 
 
 class TelegramBlockedError(Exception):
@@ -53,11 +43,10 @@ class TelegramHandler:
 
     Functions:
         `send_message`: Send message to Telegram.
-        `send_multiple_messages`: Send multiple messages to Telegram.
     """
 
-    def __init__(self):
-        self.token = os.environ.get("telegram_token")
+    def __init__(self, token):
+        self.token = token
 
     def send_message(self, cid, message):
         """Send message to Telegram.
@@ -124,26 +113,3 @@ class TelegramHandler:
                 str(e).replace(self.token, '<token>')
             ) from None
 
-    def send_multiple_messages(self, cid, messages):
-        """Send multiple messages to Telegram.
-
-        Args:
-            `cid`: Chat ID.
-            `messages`: Messages to send.
-
-        Returns:
-            True if all messages were accepted, False otherwise.
-
-        Raises:
-            Same as `send_message`; remaining messages are not sent.
-            `TelegramSendError.sent` tells how many were sent before it.
-        """
-
-        results = []
-        for message in messages:
-            try:
-                results.append(self.send_message(cid, message))
-            except TelegramSendError as e:
-                e.sent = len(results)
-                raise
-        return all(results)

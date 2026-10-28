@@ -1,21 +1,22 @@
+import os
 from concurrent.futures import ThreadPoolExecutor
 
+from dotenv import load_dotenv
+
 from lib.handler.board_feed import BoardFeed
-from lib.handler.output_handler import create_board_message_with_threads
-from lib.handler.telegram_handler import (
-    TelegramBlockedError,
-    TelegramHandler,
-    TelegramSendError,
-)
+from lib.handler.delivery import Delivery
+from lib.handler.telegram_handler import TelegramHandler
 from lib.utils.file_path import HEARTBEAT_PATH
-from lib.utils.logger import log, log_error, log_warning
+from lib.utils.logger import log, log_error
 from lib.utils.tools import get_users, remove_user
 
+load_dotenv()
 
 # Kept low so a run does not flood PTT with requests
 FETCH_WORKERS = 4
 
 BOARD_FEED = BoardFeed()
+DELIVERY = Delivery(TelegramHandler(os.environ.get('telegram_token')))
 
 
 def fetch_new_threads(board_feed, subscription):
@@ -27,7 +28,7 @@ def fetch_new_threads(board_feed, subscription):
         return []
 
 
-def notifier(board_feed=BOARD_FEED):
+def notifier(board_feed=BOARD_FEED, delivery=DELIVERY):
     users = get_users()
 
     # Each board and threshold is fetched once, shared by its subscribers
@@ -58,26 +59,16 @@ def notifier(board_feed=BOARD_FEED):
             for board, like in users[uid]["boards"].items()
         }
 
-        messages = create_board_message_with_threads(current_threads)
+        result = delivery.deliver(uid, current_threads)
 
-        if len(messages) == 0:
-            continue
-
-        try:
-            if not TelegramHandler().send_multiple_messages(
-                uid, [message for message, _ in messages]
-            ):
-                log_warning('[notifier]', f'{uid} rejected some messages')
-        except TelegramBlockedError:
+        if result.blocked:
             log('[notifier]', f'{uid} blocked the bot, removing user')
             remove_user(uid)
-        except TelegramSendError as e:
-            log_error('[notifier]', f'{uid} send failed, retry next run: {e}')
-            failed_threads.update(
-                (board, users[uid]["boards"][board], thread.url)
-                for _, message_threads in messages[e.sent :]
-                for board, thread in message_threads
-            )
+
+        failed_threads.update(
+            (board, users[uid]["boards"][board], thread.url)
+            for board, thread in result.undelivered
+        )
 
     for (board, like), threads in update_threads.items():
         sent_threads = [
