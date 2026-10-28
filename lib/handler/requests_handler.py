@@ -11,6 +11,8 @@ from lib.handler.output_handler import (
 from lib.utils.file_path import BOARDS_PATH
 from lib.utils.tools import load_json, save_json
 
+SEARCH_URL = 'https://www.ptt.cc/bbs/{}/search?page={}&q=recommend%3A{}'
+
 
 def fetch(url: str):
     """Fetch the content of the url.
@@ -22,34 +24,46 @@ def fetch(url: str):
         The content of the url.
     """
     headers = {'User-Agent': "Googlebot/2.1 (+http://www.google.com/bot.html)"}
-    res = requests.get(url, headers=headers, timeout=10)
+    # PTT's own "I am over 18" consent cookie for adult-only boards
+    cookies = {'over18': '1'}
+    res = requests.get(url, headers=headers, cookies=cookies, timeout=10)
     res.raise_for_status()
     return res.text
 
 
-def get_ptt_title_and_url(
-    board: str, likes: int, page: int = 1, max_page: int = 5
-):
+def get_ptt_title_and_url(board: str, likes: int, max_page: int = 5):
     """Get the title and url of the PTT threads.
+
+    Stops early when a page is missing or empty, keeping the threads
+    already fetched.
 
     Args:
         `board`: The name of the board.
         `likes`: The number of likes.
             Search for threads with more than this number of likes.
-        `page`: Optional. The page number. Defaults to 1.
-        `max_page`: The maximum page number. Defaults to 5. Used for recursion.
+        `max_page`: The maximum number of pages to fetch. Defaults to 5.
 
     Returns:
         list: The list of the title and url of the PTT threads.
     """
-    url = 'https://www.ptt.cc/bbs/{}/search?page={}&q=recommend%3A{}'.format(
-        board, page, likes
-    )
-    soup = BeautifulSoup(fetch(url), 'lxml')
-    threads = find_thread_info(soup)
+    threads = []
 
-    if page < max_page:
-        threads += get_ptt_title_and_url(board, likes, page + 1, max_page)
+    for page in range(1, max_page + 1):
+        url = SEARCH_URL.format(board, page, likes)
+        try:
+            text = fetch(url)
+        except requests.HTTPError as e:
+            # Pages past the last search result may return 404; a 404 on
+            # the first page means the board itself is wrong, so raise
+            status_code = getattr(e.response, 'status_code', None)
+            if page > 1 and status_code == 404:
+                break
+            raise
+
+        page_threads = find_thread_info(BeautifulSoup(text, 'lxml'))
+        if not page_threads:
+            break
+        threads += page_threads
 
     return threads
 
