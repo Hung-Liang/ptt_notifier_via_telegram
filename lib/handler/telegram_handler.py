@@ -9,7 +9,14 @@ load_dotenv()
 
 
 class TelegramSendError(Exception):
-    """Sending to Telegram failed; the message never contains the token."""
+    """Sending to Telegram failed; the message never contains the token.
+
+    Raised only for failures worth retrying on the next run.
+    """
+
+
+class TelegramBlockedError(Exception):
+    """The user blocked the bot, so further messages will never arrive."""
 
 
 class TelegramHandler:
@@ -34,7 +41,11 @@ class TelegramHandler:
             `message`: Message to send.
 
         Returns:
-            True if success, False if fail.
+            True if success, False if Telegram rejected the message.
+
+        Raises:
+            `TelegramSendError`: Network error, rate limit or server error.
+            `TelegramBlockedError`: The user blocked the bot.
         """
 
         url = 'https://api.telegram.org/bot{}/sendMessage'.format(self.token)
@@ -56,8 +67,16 @@ class TelegramHandler:
 
         if res.status_code == 200:
             return True
-        else:
-            return False
+
+        if res.status_code == 429 or res.status_code >= 500:
+            raise TelegramSendError(f'{res.status_code} {res.text}')
+
+        # Other 403s (e.g. bot kicked from a group) are not treated as
+        # permanent, to avoid removing users on an unexpected error
+        if res.status_code == 403 and 'bot was blocked' in res.text:
+            raise TelegramBlockedError(res.text)
+
+        return False
 
     def send_multiple_messages(self, cid, messages):
         """Send multiple messages to Telegram.
@@ -67,8 +86,11 @@ class TelegramHandler:
             `messages`: Messages to send.
 
         Returns:
-            True if success, False if fail.
+            True if all messages were accepted, False otherwise.
+
+        Raises:
+            Same as `send_message`; remaining messages are not sent.
         """
 
-        for message in messages:
-            self.send_message(cid, message)
+        results = [self.send_message(cid, message) for message in messages]
+        return all(results)

@@ -2,12 +2,17 @@ import pytest
 import requests
 
 from lib.handler import telegram_handler
-from lib.handler.telegram_handler import TelegramHandler, TelegramSendError
+from lib.handler.telegram_handler import (
+    TelegramBlockedError,
+    TelegramHandler,
+    TelegramSendError,
+)
 
 
 class FakeResponse:
-    status_code = 200
-    text = '{"ok":true}'
+    def __init__(self, status_code=200, text='{"ok":true}'):
+        self.status_code = status_code
+        self.text = text
 
 
 def make_handler():
@@ -46,3 +51,32 @@ def test_send_message_error_hides_token(monkeypatch):
     assert 'secret' not in str(exc_info.value)
     assert exc_info.value.__cause__ is None
     assert exc_info.value.__suppress_context__ is True
+
+
+@pytest.mark.parametrize(
+    'status_code, text, expected',
+    [
+        (429, 'Too Many Requests', TelegramSendError),
+        (502, 'Bad Gateway', TelegramSendError),
+        (403, 'Forbidden: bot was blocked by the user', TelegramBlockedError),
+    ],
+)
+def test_send_message_error_types(monkeypatch, status_code, text, expected):
+    monkeypatch.setattr(
+        telegram_handler.requests,
+        'post',
+        lambda url, json, timeout: FakeResponse(status_code, text),
+    )
+
+    with pytest.raises(expected):
+        make_handler().send_message(42, 'hi')
+
+
+def test_send_message_rejected_returns_false(monkeypatch):
+    monkeypatch.setattr(
+        telegram_handler.requests,
+        'post',
+        lambda url, json, timeout: FakeResponse(400, "can't parse entities"),
+    )
+
+    assert make_handler().send_message(42, 'hi') is False

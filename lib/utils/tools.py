@@ -110,13 +110,12 @@ def remove_board(uid, board):
     save_json(USER_JSON_PATH, users)
 
 
-def check_thread_file(thread_path: Path):
-    """Check if the thread file exist.
+def remove_user(uid):
+    """Remove the user from the user.json file.
 
     Args:
-        `thread_path` : path to the thread file.
+        `uid` : user id.
     """
-
-    if not thread_path.exists():
-        thread_path.touch()
-        save_json(thread_path, [])
+    users = get_users()
+    users.pop(str(uid), None)
+    save_json(USER_JSON_PATH, users)

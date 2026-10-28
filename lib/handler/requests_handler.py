@@ -9,7 +9,7 @@ from lib.handler.output_handler import (
     update_old_threads,
 )
 from lib.utils.file_path import BOARDS_PATH
-from lib.utils.tools import check_thread_file, load_json
+from lib.utils.tools import load_json, save_json
 
 
 def fetch(url: str):
@@ -54,8 +54,29 @@ def get_ptt_title_and_url(
     return threads
 
 
+def get_old_threads_path(board, like):
+    """Get the path of the threads already seen for a board and threshold.
+
+    Args:
+        `board`: The name of the board.
+        `like`: The number of likes.
+
+    Returns:
+        The path to the old threads json file.
+    """
+    board_folder = Path(BOARDS_PATH, board)
+    board_folder.mkdir(parents=True, exist_ok=True)
+
+    return Path(board_folder, "{}_{}.json".format(board, like))
+
+
 def get_new_threads(board, like):
     """Get the new threads.
+
+    The threads are not recorded as seen; call `mark_threads_seen` after
+    they are sent. The first run for a board and threshold only records a
+    baseline and returns nothing, so subscribers aren't flooded with old
+    threads.
 
     Args:
         `board`: The name of the board.
@@ -64,18 +85,25 @@ def get_new_threads(board, like):
     Returns:
         The new threads.
     """
-    board_folder = Path(BOARDS_PATH, board)
-    board_folder.mkdir(parents=True, exist_ok=True)
+    old_threads_path = get_old_threads_path(board, like)
 
-    old_threads_path = Path(board_folder, "{}_{}.json".format(board, like))
+    threads = get_ptt_title_and_url(board, like)
 
-    check_thread_file(old_threads_path)
+    if not old_threads_path.exists():
+        save_json(old_threads_path, threads)
+        return []
 
     old_threads = load_json(old_threads_path)
 
-    new_threads = get_ptt_title_and_url(board, like)
-    new_threads = compare_with_old(new_threads, old_threads)
+    return compare_with_old(threads, old_threads)
 
-    update_old_threads(old_threads_path, new_threads)
 
-    return new_threads
+def mark_threads_seen(board, like, threads):
+    """Record threads as seen so they are not sent again.
+
+    Args:
+        `board`: The name of the board.
+        `like`: The number of likes.
+        `threads`: The threads that were sent.
+    """
+    update_old_threads(get_old_threads_path(board, like), threads)
