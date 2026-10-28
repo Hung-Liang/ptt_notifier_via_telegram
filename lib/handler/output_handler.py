@@ -1,18 +1,6 @@
 import html
 
-
-def create_board_message(threads):
-    """Create the board message.
-
-    Args:
-        `threads` : The dictionary of threads. Contain multiple boards.
-
-    Returns:
-        list: The list of the board message.
-    """
-    return [
-        message for message, _ in create_board_message_with_threads(threads)
-    ]
+from lib.handler.delivery import pack
 
 
 def create_board_message_with_threads(threads):
@@ -24,44 +12,22 @@ def create_board_message_with_threads(threads):
     Returns:
         list: (message, [(board, thread), ...]) for each message.
     """
-    messages = []
-
     split_line = '\n-------------------------------------\n'
 
-    message = ""
-    message_threads = []
-
-    for board in threads:
-
-        if len(threads[board]) == 0:
-            continue
-
-        header = f'<b>{board.upper()}</b>\n{split_line}'
-
-        if len(message + header) >= 4096:
-            messages.append((message, message_threads))
-            message = ''
-            message_threads = []
-
-        message += header
-
-        for thread in threads[board]:
-            new_message = (
+    groups = []
+    for board, board_threads in threads.items():
+        entries = [
+            (
                 f"<a href='https://www.ptt.cc{thread.url}'><b>[{thread.like}]"
-                f" {html.escape(thread.title)}</b></a>{split_line}"
+                f" {html.escape(thread.title)}</b></a>{split_line}",
+                (board, thread),
             )
+            for thread in board_threads
+        ]
+        if entries:
+            # A blank line separates boards in the same message
+            text, payload = entries[-1]
+            entries[-1] = (text + '\n', payload)
+        groups.append((f'<b>{board.upper()}</b>\n{split_line}', entries))
 
-            if len(new_message + message) >= 4096:
-                messages.append((message, message_threads))
-                message = header
-                message_threads = []
-
-            message += new_message
-            message_threads.append((board, thread))
-
-        message += "\n"
-
-    if message != "":
-        messages.append((message, message_threads))
-
-    return messages
+    return pack(groups)

@@ -1,8 +1,10 @@
 from lib.handler.board_feed import Thread
-from lib.handler.output_handler import (
-    create_board_message,
-    create_board_message_with_threads,
-)
+from lib.handler.delivery import MESSAGE_LIMIT
+from lib.handler.output_handler import create_board_message_with_threads
+
+
+def create_board_message(threads):
+    return [m for m, _ in create_board_message_with_threads(threads)]
 
 
 def make_threads(board, count, title_length):
@@ -35,7 +37,7 @@ def test_long_message_is_split_under_limit():
     messages = create_board_message({'Test': make_threads('Test', 100, 80)})
 
     assert len(messages) > 1
-    assert all(len(message) < 4096 for message in messages)
+    assert all(len(message) <= MESSAGE_LIMIT for message in messages)
     assert all(message.startswith('<b>TEST</b>') for message in messages)
 
 
@@ -44,7 +46,7 @@ def test_board_header_overflow_does_not_duplicate_content():
     # so the second board's header alone exceeds the limit
     first = make_threads('First', 1, 0)
     base = len(create_board_message({'First': first})[0])
-    padding = 4096 - base - 10
+    padding = MESSAGE_LIMIT - base - 10
     first[0] = first[0]._replace(title='x' * padding)
 
     threads = {'First': first, 'Second': make_threads('Second', 1, 10)}
@@ -54,7 +56,7 @@ def test_board_header_overflow_does_not_duplicate_content():
     assert joined.count('/bbs/First/M.0.A.html') == 1
     assert joined.count('/bbs/Second/M.0.A.html') == 1
     assert '<b>SECOND</b>' in messages[-1]
-    assert all(len(message) < 4096 for message in messages)
+    assert all(len(message) <= MESSAGE_LIMIT for message in messages)
 
 
 def test_threads_are_tracked_per_message():

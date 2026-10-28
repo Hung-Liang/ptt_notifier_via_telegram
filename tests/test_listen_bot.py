@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import listen_bot
+from lib.handler.delivery import MESSAGE_LIMIT
 from lib.utils import tools
 
 
@@ -121,7 +122,7 @@ def test_users_messages_joins_users_under_limit():
     messages = listen_bot.users_messages(users)
 
     assert 1 < len(messages) < len(users)
-    assert all(len(m) <= listen_bot.MESSAGE_LIMIT for m in messages)
+    assert all(len(m) <= MESSAGE_LIMIT for m in messages)
     joined = ''.join(messages)
     assert all(f'user{i}\nGossiping 10\n' in joined for i in range(300))
 

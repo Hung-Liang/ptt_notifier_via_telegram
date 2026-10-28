@@ -10,6 +10,7 @@ from telegram.ext import (
     Defaults,
     TypeHandler,
 )
+from lib.handler.delivery import pack
 from lib.utils.config import ADMIN_MODE, MAX_BOARDS, THRESHOLDS
 from lib.utils.tools import (
     initial_user,
@@ -27,9 +28,6 @@ from lib.utils.file_path import BOARDS_JSON_PATH
 
 
 load_dotenv()
-
-# Telegram's maximum text length for one message
-MESSAGE_LIMIT = 4096
 
 
 async def start(update, context):
@@ -220,24 +218,16 @@ def parse_callback(data, size):
 
 def users_messages(users):
     """Join every user into as few messages as Telegram allows."""
-    messages = []
-    message = ''
+    entries = []
 
     for user in users.values():
         entry = user['name'] + '\n'
         for board, threshold in user['boards'].items():
             entry += f'{board} {threshold}\n'
         entry += '\n'
+        entries.append((entry, None))
 
-        if message and len(message + entry) > MESSAGE_LIMIT:
-            messages.append(message)
-            message = ''
-        message += entry
-
-    if message:
-        messages.append(message)
-
-    return messages
+    return [message for message, _ in pack([('', entries)])]
 
 
 def get_page_numbers():
