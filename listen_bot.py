@@ -102,7 +102,14 @@ async def board_register(update, context):
 
 async def delete_board(update, context):
     await update.callback_query.answer()
-    board = update.callback_query.data.split(',')[1]
+    # Not checked with is_valid_board: users may still hold boards that
+    # were later removed from boards.json, and removal only pops a dict key
+    fields = parse_callback(update.callback_query.data, 1)
+    if fields is None:
+        log(f'Invalid callback data: {update.callback_query.data!r}')
+        return
+
+    board = fields[0]
     uid = update.callback_query.from_user.id
     name = update.callback_query.from_user.name
 
@@ -238,26 +245,16 @@ def select_threshold_keyboard(data):
 
 
 def delete_board_maker(boards):
-    keyboard = []
-    counter = 0
-    buttons = []
-    validation = True
-    for board in boards:
-        if counter % 2 == 0 and counter != 0:
-            keyboard.append(buttons)
-            buttons = []
-            buttons.append(
-                InlineKeyboardButton(board, callback_data=f'Delete,{board}')
-            )
-            validation = False
-        else:
-            buttons.append(
-                InlineKeyboardButton(board, callback_data=f'Delete,{board}')
-            )
-            validation = True
-        counter += 1
-    if validation:
-        keyboard.append(buttons)
+    boards = list(boards)
+
+    keyboard = [
+        [
+            InlineKeyboardButton(board, callback_data=f'Delete,{board}')
+            for board in boards[i : i + 2]
+        ]
+        for i in range(0, len(boards), 2)
+    ]
+
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -315,21 +312,30 @@ def no_board_message():
     return '你目前沒有訂閱任何看板，可以使用 /add 新增'
 
 
-application = (
-    Application.builder().token(os.environ.get("telegram_token")).build()
-)
-application.add_handler(CommandHandler('start', start))
-application.add_handler(CommandHandler('me', me))
-application.add_handler(CommandHandler('add', add))
-application.add_handler(CommandHandler('delete', delete))
-application.add_handler(CommandHandler('delete_me', delete_me))
-application.add_handler(CallbackQueryHandler(page_turner, pattern='Page'))
-application.add_handler(CallbackQueryHandler(board_register, pattern='Board'))
-application.add_handler(
-    CallbackQueryHandler(confirm_and_write, pattern='Confirm')
-)
-application.add_handler(CallbackQueryHandler(delete_board, pattern='Delete'))
-application.add_handler(CommandHandler('users', _get_users))
-application.add_error_handler(error)
+def main():
+    application = (
+        Application.builder().token(os.environ.get("telegram_token")).build()
+    )
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('me', me))
+    application.add_handler(CommandHandler('add', add))
+    application.add_handler(CommandHandler('delete', delete))
+    application.add_handler(CommandHandler('delete_me', delete_me))
+    application.add_handler(CallbackQueryHandler(page_turner, pattern='Page'))
+    application.add_handler(
+        CallbackQueryHandler(board_register, pattern='Board')
+    )
+    application.add_handler(
+        CallbackQueryHandler(confirm_and_write, pattern='Confirm')
+    )
+    application.add_handler(
+        CallbackQueryHandler(delete_board, pattern='Delete')
+    )
+    application.add_handler(CommandHandler('users', _get_users))
+    application.add_error_handler(error)
 
-application.run_polling()
+    application.run_polling()
+
+
+if __name__ == '__main__':
+    main()
