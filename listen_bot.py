@@ -15,12 +15,16 @@ from lib.utils.tools import (
     get_users,
     remove_board,
     remove_user,
+    update_user_name,
 )
 from lib.utils.logger import log
 from lib.utils.file_path import BOARDS_JSON_PATH
 
 
 load_dotenv()
+
+# Telegram's maximum text length for one message
+MESSAGE_LIMIT = 4096
 
 
 async def start(update, context):
@@ -32,6 +36,7 @@ async def start(update, context):
 
         await update.message.reply_text(start_message(name))
     else:
+        update_user_name(uid, name)
         await update.message.reply_text(already_register_message(name))
 
 
@@ -71,6 +76,7 @@ async def me(update, context):
         await update.message.reply_text(not_registered_message())
         return
 
+    update_user_name(uid, name)
     users = get_users()
     await update.message.reply_text(
         user_message(name, users[str(uid)]['boards'])
@@ -175,13 +181,8 @@ async def page_turner(update, context):
 async def _get_users(update, context):
     uid = update.message.from_user.id
     if str(uid) == os.environ.get("admin_id"):
-        users = get_users()
-        for key in users:
-            temp = users[key]['name'] + '\n'
-            for b in users[key]['boards']:
-                temp = temp + b + ' ' + users[key]['boards'][b] + '\n'
-
-            await update.message.reply_text(temp)
+        for message in users_messages(get_users()):
+            await update.message.reply_text(message)
 
 
 async def error(update, context):
@@ -201,6 +202,28 @@ def parse_callback(data, size):
     """
     fields = data.split(',')[1:]
     return fields if len(fields) == size else None
+
+
+def users_messages(users):
+    """Join every user into as few messages as Telegram allows."""
+    messages = []
+    message = ''
+
+    for user in users.values():
+        entry = user['name'] + '\n'
+        for board, threshold in user['boards'].items():
+            entry += f'{board} {threshold}\n'
+        entry += '\n'
+
+        if message and len(message + entry) > MESSAGE_LIMIT:
+            messages.append(message)
+            message = ''
+        message += entry
+
+    if message:
+        messages.append(message)
+
+    return messages
 
 
 def get_page_numbers():

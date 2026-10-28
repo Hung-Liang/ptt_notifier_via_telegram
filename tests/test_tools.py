@@ -63,3 +63,15 @@ def test_keep_listen_bot_alive(monkeypatch):
     running = FakeProcess(None)
     assert tools.keep_listen_bot_alive(running) is running
     assert tools.keep_listen_bot_alive(FakeProcess(1)) is restarted
+
+
+def test_update_user_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(tools, 'USER_JSON_PATH', tmp_path / 'user.json')
+    tools.initial_user(1, 'old')
+    tools.add_or_update_board(1, 'Test', '10')
+
+    tools.update_user_name(1, 'new')
+    tools.update_user_name(2, 'nobody')
+
+    users = tools.get_users()
+    assert users == {'1': {'name': 'new', 'boards': {'Test': '10'}}}

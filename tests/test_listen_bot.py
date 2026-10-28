@@ -87,3 +87,17 @@ def test_error_logs_traceback_without_update_details(monkeypatch):
     assert 'Update 7' in logged[0]
     assert 'Traceback' in logged[0] and 'boom' in logged[0]
     assert 'secret text' not in logged[0]
+
+
+def test_users_messages_joins_users_under_limit():
+    users = {
+        str(i): {'name': f'user{i}', 'boards': {'Gossiping': '10'}}
+        for i in range(300)
+    }
+
+    messages = listen_bot.users_messages(users)
+
+    assert 1 < len(messages) < len(users)
+    assert all(len(m) <= listen_bot.MESSAGE_LIMIT for m in messages)
+    joined = ''.join(messages)
+    assert all(f'user{i}\nGossiping 10\n' in joined for i in range(300))

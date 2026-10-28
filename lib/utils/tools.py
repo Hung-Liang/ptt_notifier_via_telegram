@@ -150,6 +150,22 @@ def initial_user(uid, name):
         save_json(USER_JSON_PATH, users)
 
 
+def update_user_name(uid, name):
+    """Update the stored name if the user changed it on Telegram.
+
+    Args:
+        `uid` : user id.
+        `name` : current user name.
+    """
+    with users_lock():
+        users = get_users()
+        user = users.get(str(uid))
+        if user is None or user['name'] == name:
+            return
+        user['name'] = name
+        save_json(USER_JSON_PATH, users)
+
+
 def add_or_update_board(uid, board, threshold):
     """Add or update the board to the user.json file.
 
