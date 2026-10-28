@@ -68,3 +68,22 @@ def test_delete_board_removes_board(monkeypatch):
 
     assert removed == [(1, 'Gossiping')]
     assert len(update.callback_query.message.edits) == 1
+
+
+def test_error_logs_traceback_without_update_details(monkeypatch):
+    logged = []
+    monkeypatch.setattr(
+        listen_bot, 'log', lambda *args: logged.append(' '.join(args))
+    )
+
+    try:
+        raise ValueError('boom')
+    except ValueError as e:
+        context = SimpleNamespace(error=e)
+
+    update = SimpleNamespace(update_id=7, message='secret text')
+    asyncio.run(listen_bot.error(update, context))
+
+    assert 'Update 7' in logged[0]
+    assert 'Traceback' in logged[0] and 'boom' in logged[0]
+    assert 'secret text' not in logged[0]

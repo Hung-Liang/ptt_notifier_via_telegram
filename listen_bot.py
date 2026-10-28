@@ -1,4 +1,5 @@
 import os
+import traceback
 
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -184,7 +185,12 @@ async def _get_users(update, context):
 
 
 async def error(update, context):
-    log(f'Update {update} caused error {context.error}')
+    # Log only the update id; the full update holds user names and messages
+    update_id = getattr(update, 'update_id', None)
+    log(
+        f'Update {update_id} caused error:',
+        ''.join(traceback.format_exception(context.error)),
+    )
 
 
 def parse_callback(data, size):

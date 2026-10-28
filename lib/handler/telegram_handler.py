@@ -66,13 +66,14 @@ class TelegramHandler:
                 str(e).replace(self.token, '<token>')
             ) from None
 
+        if res.status_code == 200:
+            log('[telegram_lib]', f'send message to {cid}: 200')
+            return True
+
         log(
             '[telegram_lib]',
-            f'send message: {res.status_code} {res.text}',
+            f'send message to {cid}: {res.status_code} {res.text}',
         )
-
-        if res.status_code == 200:
-            return True
 
         if res.status_code == 429 or res.status_code >= 500:
             raise TelegramSendError(f'{res.status_code} {res.text}')
