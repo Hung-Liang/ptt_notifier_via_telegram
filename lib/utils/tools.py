@@ -2,9 +2,18 @@ import json
 import os
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
-from lib.utils.file_path import USER_JSON_PATH
+from lib.utils.file_path import BOARDS_JSON_PATH, USER_JSON_PATH
+
+if os.name == 'nt':
+    import msvcrt
+else:
+    import fcntl
+
+THRESHOLDS = ('10', '20', '30', '50', '70', '100')
+MAX_BOARDS = 10
 
 
 def get_users():
@@ -52,6 +61,41 @@ def load_json(path):
     return data
 
 
+@contextmanager
+def users_lock():
+    """Hold an exclusive lock for a read-modify-write of user.json.
+
+    The bot and notifier processes both update user.json; atomic replace
+    alone still lets one overwrite the other's changes. Not reentrant.
+    """
+    lock_path = Path(USER_JSON_PATH).with_suffix('.lock')
+    with open(lock_path, 'a+b') as f:
+        if os.name == 'nt':
+            # Locks the first byte; retries for ~10s then raises OSError
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == 'nt':
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(f, fcntl.LOCK_UN)
+
+
+def is_valid_board(board):
+    """Check if the board is listed in boards.json.
+
+    Callback data can be forged by modified clients, so a board taken
+    from it must be checked before it is used in paths, URLs or messages.
+    """
+    boards = load_json(BOARDS_JSON_PATH)
+    return any(board in page for page in boards.values())
+
+
 def run_listen_bot():
     """Run listen_bot.py as a subprocess."""
     subprocess.Popen([sys.executable, 'listen_bot.py'])
@@ -79,9 +123,10 @@ def initial_user(uid, name):
         `uid` : user id.
         `name` : user name.
     """
-    users = get_users()
-    users[str(uid)] = {'name': name, 'boards': {}}
-    save_json(USER_JSON_PATH, users)
+    with users_lock():
+        users = get_users()
+        users[str(uid)] = {'name': name, 'boards': {}}
+        save_json(USER_JSON_PATH, users)
 
 
 def add_or_update_board(uid, board, threshold):
@@ -91,10 +136,18 @@ def add_or_update_board(uid, board, threshold):
         `uid` : user id.
         `board` : board to add or update.
         `threshold` : threshold to add or update.
+
+    Returns:
+        `bool` : False if adding a new board would exceed `MAX_BOARDS`.
     """
-    users = get_users()
-    users[str(uid)]['boards'][board] = threshold
-    save_json(USER_JSON_PATH, users)
+    with users_lock():
+        users = get_users()
+        boards = users[str(uid)]['boards']
+        if board not in boards and len(boards) >= MAX_BOARDS:
+            return False
+        boards[board] = threshold
+        save_json(USER_JSON_PATH, users)
+    return True
 
 
 def remove_board(uid, board):
@@ -104,10 +157,11 @@ def remove_board(uid, board):
         `uid` : user id.
         `board` : board to remove.
     """
-    users = get_users()
-    # The board may already be gone if an old delete keyboard is reused
-    users[str(uid)]['boards'].pop(board, None)
-    save_json(USER_JSON_PATH, users)
+    with users_lock():
+        users = get_users()
+        # The board may already be gone if an old delete keyboard is reused
+        users[str(uid)]['boards'].pop(board, None)
+        save_json(USER_JSON_PATH, users)
 
 
 def remove_user(uid):
@@ -116,6 +170,7 @@ def remove_user(uid):
     Args:
         `uid` : user id.
     """
-    users = get_users()
-    users.pop(str(uid), None)
-    save_json(USER_JSON_PATH, users)
+    with users_lock():
+        users = get_users()
+        users.pop(str(uid), None)
+        save_json(USER_JSON_PATH, users)

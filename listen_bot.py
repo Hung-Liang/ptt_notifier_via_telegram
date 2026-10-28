@@ -4,16 +4,19 @@ from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackQueryHandler, CommandHandler, Updater
 from lib.utils.tools import (
+    MAX_BOARDS,
+    THRESHOLDS,
     initial_user,
     check_if_user_exist,
+    is_valid_board,
     load_json,
-    save_json,
     add_or_update_board,
     get_users,
     remove_board,
+    remove_user,
 )
 from lib.utils.logger import log
-from lib.utils.file_path import BOARDS_JSON_PATH, USER_JSON_PATH
+from lib.utils.file_path import BOARDS_JSON_PATH
 
 
 load_dotenv()
@@ -36,7 +39,10 @@ def add(bot, update):
         bot.message.reply_text(not_registered_message())
         return
 
-    bot.message.reply_text(add_message(), reply_markup=page_keyboard_maker(1))
+    first_page = get_page_numbers()[0]
+    bot.message.reply_text(
+        add_message(), reply_markup=page_keyboard_maker(first_page)
+    )
 
 
 def delete(bot, update):
@@ -75,15 +81,18 @@ def delete_me(bot, update):
         bot.message.reply_text(not_registered_message())
         return
 
-    users = get_users()
-    users.pop(str(uid))
+    remove_user(uid)
     bot.message.reply_text(deleteuser_message(name))
-    save_json(USER_JSON_PATH, users)
 
 
 def board_register(bot, update):
     bot.callback_query.answer()
-    board = bot.callback_query.data.split(',')[1]
+    fields = parse_callback(bot.callback_query.data, 1)
+    if fields is None or not is_valid_board(fields[0]):
+        log(f'Invalid callback data: {bot.callback_query.data!r}')
+        return
+
+    board = fields[0]
     bot.callback_query.message.edit_text(
         choose_message(), reply_markup=select_threshold_keyboard(board)
     )
@@ -106,7 +115,16 @@ def delete_board(bot, update):
 
 def confirm_and_write(bot, update):
     bot.callback_query.answer()
-    board, threshold = bot.callback_query.data.split(',')[1:]
+    fields = parse_callback(bot.callback_query.data, 2)
+    if (
+        fields is None
+        or not is_valid_board(fields[0])
+        or fields[1] not in THRESHOLDS
+    ):
+        log(f'Invalid callback data: {bot.callback_query.data!r}')
+        return
+
+    board, threshold = fields
     uid = bot.callback_query.from_user.id
     name = bot.callback_query.from_user.name
 
@@ -114,7 +132,9 @@ def confirm_and_write(bot, update):
         bot.callback_query.message.edit_text(not_registered_message())
         return
 
-    add_or_update_board(uid, board, threshold)
+    if not add_or_update_board(uid, board, threshold):
+        bot.callback_query.message.edit_text(error_message())
+        return
 
     bot.callback_query.message.edit_text(
         confirm_message(name, board, threshold)
@@ -123,9 +143,20 @@ def confirm_and_write(bot, update):
 
 def page_turner(bot, update):
     bot.callback_query.answer()
-    page = int(bot.callback_query.data.split(',')[1])
+    fields = parse_callback(bot.callback_query.data, 1)
+    pages = get_page_numbers()
+    if (
+        fields is None
+        or not fields[0].isdigit()
+        or int(fields[0]) not in pages
+    ):
+        log(f'Invalid callback data: {bot.callback_query.data!r}')
+        return
+
+    page = int(fields[0])
     bot.callback_query.message.edit_text(
-        add_message(page), reply_markup=page_keyboard_maker(page)
+        add_message(pages.index(page) + 1),
+        reply_markup=page_keyboard_maker(page),
     )
 
 
@@ -145,6 +176,21 @@ def error(update, context):
     log(f'Update {update} caused error {context.error}')
 
 
+def parse_callback(data, size):
+    """Split callback data into its fields after the prefix.
+
+    Modified clients can send arbitrary callback data, so return None
+    unless there are exactly `size` fields.
+    """
+    fields = data.split(',')[1:]
+    return fields if len(fields) == size else None
+
+
+def get_page_numbers():
+    """Page numbers in boards.json, sorted; they may start at 0 or 1."""
+    return sorted(int(page) for page in load_json(BOARDS_JSON_PATH))
+
+
 def page_keyboard_maker(page):
     boards = load_json(BOARDS_JSON_PATH)
 
@@ -160,11 +206,11 @@ def page_keyboard_maker(page):
 
     change_page = []
 
-    if page != 1:
+    if str(page - 1) in boards:
         change_page.append(
             InlineKeyboardButton('<< 上一頁', callback_data=f'Page,{page-1}')
         )
-    if page != len(boards):
+    if str(page + 1) in boards:
         change_page.append(
             InlineKeyboardButton('下一頁 >>', callback_data=f'Page,{page+1}')
         )
@@ -177,12 +223,11 @@ def page_keyboard_maker(page):
 def select_threshold_keyboard(data):
     keyboard = [
         [
-            InlineKeyboardButton('10', callback_data=f'Confirm,{data},10'),
-            InlineKeyboardButton('20', callback_data=f'Confirm,{data},20'),
-            InlineKeyboardButton('30', callback_data=f'Confirm,{data},30'),
-            InlineKeyboardButton('50', callback_data=f'Confirm,{data},50'),
-            InlineKeyboardButton('70', callback_data=f'Confirm,{data},70'),
-            InlineKeyboardButton('爆', callback_data=f'Confirm,{data},100'),
+            InlineKeyboardButton(
+                '爆' if threshold == '100' else threshold,
+                callback_data=f'Confirm,{data},{threshold}',
+            )
+            for threshold in THRESHOLDS
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -247,7 +292,7 @@ def user_message(name, boards):
 
 
 def error_message():
-    return '抱歉，目前每個人最多訂閱十個版'
+    return f'抱歉，目前每個人最多訂閱{MAX_BOARDS}個版'
 
 
 def choose_message():
