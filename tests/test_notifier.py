@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 
 from lib import notifier as notifier_module
@@ -80,4 +82,54 @@ def test_blocked_user_is_removed_and_board_marked(env):
     notifier_module.notifier()
 
     assert env['removed'] == ['1']
+    assert sorted(env['marked']) == ['Other', 'Test']
+
+
+def test_each_subscription_fetched_once(env, monkeypatch):
+    fetched = []
+
+    def fake_get_new_threads(board, like):
+        fetched.append((board, like))
+        return [THREAD]
+
+    monkeypatch.setattr(
+        notifier_module, 'get_new_threads', fake_get_new_threads
+    )
+
+    notifier_module.notifier()
+
+    assert sorted(fetched) == [('Other', '10'), ('Test', '10')]
+
+
+def test_fetch_failure_skips_only_that_board(env, monkeypatch):
+    def fake_get_new_threads(board, like):
+        if board == 'Test':
+            raise ConnectionError('ptt down')
+        return [THREAD]
+
+    monkeypatch.setattr(
+        notifier_module, 'get_new_threads', fake_get_new_threads
+    )
+    monkeypatch.setattr(notifier_module, 'log', lambda *args: None)
+
+    notifier_module.notifier()
+
+    assert env['sent_to'] == ['3']
+    assert env['marked'] == ['Other']
+
+
+def test_subscriptions_are_fetched_concurrently(env, monkeypatch):
+    # Both fetches must be in flight at once to pass the barrier
+    barrier = threading.Barrier(2, timeout=5)
+
+    def fake_get_new_threads(board, like):
+        barrier.wait()
+        return [THREAD]
+
+    monkeypatch.setattr(
+        notifier_module, 'get_new_threads', fake_get_new_threads
+    )
+
+    notifier_module.notifier()
+
     assert sorted(env['marked']) == ['Other', 'Test']

@@ -1,4 +1,5 @@
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 
 from lib.handler.output_handler import create_board_message
 from lib.handler.requests_handler import (
@@ -16,10 +17,34 @@ from lib.utils.logger import log
 from lib.utils.tools import get_users, remove_user
 
 
+# Kept low so a run does not flood PTT with requests
+FETCH_WORKERS = 4
+
+
+def fetch_new_threads(board_and_like):
+    try:
+        return get_new_threads(*board_and_like)
+    except Exception:
+        # Skip this board so one failure doesn't block others
+        log('[notifier]', board_and_like, traceback.format_exc())
+        return []
+
+
 def notifier():
     users = get_users()
 
-    update_threads = {}
+    # Each board and threshold is fetched once, shared by its subscribers
+    subscriptions = list(
+        dict.fromkeys(
+            (board, like)
+            for user in users.values()
+            for board, like in user["boards"].items()
+        )
+    )
+    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as executor:
+        results = executor.map(fetch_new_threads, subscriptions)
+        update_threads = dict(zip(subscriptions, results, strict=True))
+
     # Threads are shared by every user with the same board and threshold,
     # so a retryable failure for any of them keeps the threads unseen and
     # all of them get it again next run; duplicates beat missed threads
@@ -27,26 +52,10 @@ def notifier():
 
     for uid in users:
 
-        current_threads = {}
-
-        for board in users[uid]["boards"]:
-            like = users[uid]["boards"][board]
-
-            board_and_like = (board, like)
-
-            if board_and_like in update_threads:
-                threads = update_threads[board_and_like]
-            else:
-                try:
-                    threads = get_new_threads(board, like)
-                except Exception:
-                    # Skip this board so one failure doesn't block others;
-                    # cache the empty result to avoid refetching this run
-                    log('[notifier]', board_and_like, traceback.format_exc())
-                    threads = []
-                update_threads[board_and_like] = threads
-
-            current_threads[board] = threads
+        current_threads = {
+            board: update_threads[(board, like)]
+            for board, like in users[uid]["boards"].items()
+        }
 
         messages = create_board_message(current_threads)
 
