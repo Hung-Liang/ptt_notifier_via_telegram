@@ -59,6 +59,7 @@ def test_send_message_error_hides_token(monkeypatch):
         (429, 'Too Many Requests', TelegramSendError),
         (502, 'Bad Gateway', TelegramSendError),
         (403, 'Forbidden: bot was blocked by the user', TelegramBlockedError),
+        (403, 'Forbidden: user is deactivated', TelegramBlockedError),
     ],
 )
 def test_send_message_error_types(monkeypatch, status_code, text, expected):
@@ -77,6 +78,18 @@ def test_send_message_rejected_returns_false(monkeypatch):
         telegram_handler.requests,
         'post',
         lambda url, json, timeout: FakeResponse(400, "can't parse entities"),
+    )
+
+    assert make_handler().send_message(42, 'hi') is False
+
+
+def test_other_forbidden_errors_are_not_treated_as_blocked(monkeypatch):
+    monkeypatch.setattr(
+        telegram_handler.requests,
+        'post',
+        lambda url, json, timeout: FakeResponse(
+            403, 'Forbidden: bot was kicked from the group chat'
+        ),
     )
 
     assert make_handler().send_message(42, 'hi') is False

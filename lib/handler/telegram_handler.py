@@ -16,7 +16,12 @@ class TelegramSendError(Exception):
 
 
 class TelegramBlockedError(Exception):
-    """The user blocked the bot, so further messages will never arrive."""
+    """The user blocked the bot or deleted their account, so further
+    messages will never arrive."""
+
+
+# 403 descriptions meaning the chat can never receive messages again
+UNREACHABLE_ERRORS = ('bot was blocked', 'user is deactivated')
 
 
 class TelegramHandler:
@@ -45,7 +50,8 @@ class TelegramHandler:
 
         Raises:
             `TelegramSendError`: Network error, rate limit or server error.
-            `TelegramBlockedError`: The user blocked the bot.
+            `TelegramBlockedError`: The user blocked the bot or deleted
+                their account.
         """
 
         url = 'https://api.telegram.org/bot{}/sendMessage'.format(self.token)
@@ -73,7 +79,9 @@ class TelegramHandler:
 
         # Other 403s (e.g. bot kicked from a group) are not treated as
         # permanent, to avoid removing users on an unexpected error
-        if res.status_code == 403 and 'bot was blocked' in res.text:
+        if res.status_code == 403 and any(
+            error in res.text for error in UNREACHABLE_ERRORS
+        ):
             raise TelegramBlockedError(res.text)
 
         return False
