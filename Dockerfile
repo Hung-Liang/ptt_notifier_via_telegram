@@ -28,4 +28,8 @@ RUN mkdir -p assets/boards logs && chown -R app:app assets logs
 
 USER app
 
+# First notifier run can be up to 30 minutes after start
+HEALTHCHECK --interval=5m --timeout=10s --start-period=35m \
+    CMD ["python", "healthcheck.py"]
+
 CMD ["python", "main.py"]

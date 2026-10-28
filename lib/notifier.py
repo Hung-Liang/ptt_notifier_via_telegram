@@ -3,6 +3,7 @@ import traceback
 from lib.handler.output_handler import create_board_message
 from lib.handler.requests_handler import get_new_threads
 from lib.handler.telegram_handler import TelegramHandler
+from lib.utils.file_path import HEARTBEAT_PATH
 from lib.utils.logger import log
 from lib.utils.tools import get_users
 
@@ -41,3 +42,5 @@ def notifier():
             continue
 
         TelegramHandler().send_multiple_messages(uid, messages)
+
+    HEARTBEAT_PATH.touch()
