@@ -1,6 +1,6 @@
 import json
-import platform
 import subprocess
+import sys
 from pathlib import Path
 
 from lib.utils.file_path import USER_JSON_PATH
@@ -49,9 +49,7 @@ def load_json(path):
 
 def run_listen_bot():
     """Run listen_bot.py as a subprocess."""
-    system = platform.system()
-    python = 'python3' if system == 'Linux' else 'python'
-    subprocess.Popen([python, 'listen_bot.py'])
+    subprocess.Popen([sys.executable, 'listen_bot.py'])
 
 
 def check_if_user_exist(uid):
