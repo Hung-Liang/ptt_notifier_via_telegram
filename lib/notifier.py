@@ -1,11 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 
+from lib.handler.board_feed import BoardFeed
 from lib.handler.output_handler import create_board_message_with_threads
-from lib.handler.requests_handler import (
-    get_new_threads,
-    mark_threads_seen,
-    remove_unsubscribed_records,
-)
 from lib.handler.telegram_handler import (
     TelegramBlockedError,
     TelegramHandler,
@@ -19,17 +15,19 @@ from lib.utils.tools import get_users, remove_user
 # Kept low so a run does not flood PTT with requests
 FETCH_WORKERS = 4
 
+BOARD_FEED = BoardFeed()
 
-def fetch_new_threads(board_and_like):
+
+def fetch_new_threads(board_feed, subscription):
     try:
-        return get_new_threads(*board_and_like)
+        return board_feed.new_threads(subscription)
     except Exception:
         # Skip this board so one failure doesn't block others
-        log_error('[notifier]', board_and_like, exc_info=True)
+        log_error('[notifier]', subscription, exc_info=True)
         return []
 
 
-def notifier():
+def notifier(board_feed=BOARD_FEED):
     users = get_users()
 
     # Each board and threshold is fetched once, shared by its subscribers
@@ -41,7 +39,10 @@ def notifier():
         )
     )
     with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as executor:
-        results = executor.map(fetch_new_threads, subscriptions)
+        results = executor.map(
+            lambda subscription: fetch_new_threads(board_feed, subscription),
+            subscriptions,
+        )
         update_threads = dict(zip(subscriptions, results, strict=True))
 
     # Threads are shared by every user with the same board and threshold,
@@ -73,7 +74,7 @@ def notifier():
         except TelegramSendError as e:
             log_error('[notifier]', f'{uid} send failed, retry next run: {e}')
             failed_threads.update(
-                (board, users[uid]["boards"][board], thread[2])
+                (board, users[uid]["boards"][board], thread.url)
                 for _, message_threads in messages[e.sent :]
                 for board, thread in message_threads
             )
@@ -82,11 +83,11 @@ def notifier():
         sent_threads = [
             thread
             for thread in threads
-            if (board, like, thread[2]) not in failed_threads
+            if (board, like, thread.url) not in failed_threads
         ]
         if sent_threads:
-            mark_threads_seen(board, like, sent_threads)
+            board_feed.mark_seen((board, like), sent_threads)
 
-    remove_unsubscribed_records(update_threads.keys())
+    board_feed.prune(update_threads.keys())
 
     HEARTBEAT_PATH.touch()

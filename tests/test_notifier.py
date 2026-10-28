@@ -3,12 +3,25 @@ import threading
 import pytest
 
 from lib import notifier as notifier_module
+from lib.handler.board_feed import Thread
 from lib.handler.telegram_handler import (
     TelegramBlockedError,
     TelegramSendError,
 )
 
-THREAD = ['10', 'title', '/bbs/Test/M.1.A.html']
+THREAD = Thread('10', 'title', '/bbs/Test/M.1.A.html')
+
+
+class FakeBoardFeed:
+    def __init__(self, state):
+        self.state = state
+        self.new_threads = lambda subscription: [THREAD]
+
+    def mark_seen(self, subscription, threads):
+        self.state['marked'].append(subscription[0])
+
+    def prune(self, subscriptions_to_keep):
+        self.state['subscribed'] = set(subscriptions_to_keep)
 
 
 @pytest.fixture
@@ -35,31 +48,23 @@ def env(monkeypatch, tmp_path):
             return True
 
     monkeypatch.setattr(notifier_module, 'get_users', lambda: state['users'])
-    monkeypatch.setattr(
-        notifier_module, 'get_new_threads', lambda board, like: [THREAD]
-    )
     monkeypatch.setattr(notifier_module, 'TelegramHandler', FakeHandler)
-    monkeypatch.setattr(
-        notifier_module,
-        'mark_threads_seen',
-        lambda board, like, threads: state['marked'].append(board),
-    )
     monkeypatch.setattr(
         notifier_module, 'remove_user', state['removed'].append
     )
     monkeypatch.setattr(
-        notifier_module,
-        'remove_unsubscribed_records',
-        lambda subscriptions: state.update(subscribed=set(subscriptions)),
-    )
-    monkeypatch.setattr(
         notifier_module, 'HEARTBEAT_PATH', tmp_path / '.heartbeat'
     )
+    state['feed'] = FakeBoardFeed(state)
     return state
 
 
+def run(env):
+    notifier_module.notifier(board_feed=env['feed'])
+
+
 def test_all_sent_marks_every_board(env):
-    notifier_module.notifier()
+    run(env)
 
     assert env['sent_to'] == ['1', '2', '3']
     assert sorted(env['marked']) == ['Other', 'Test']
@@ -69,7 +74,7 @@ def test_all_sent_marks_every_board(env):
 def test_send_failure_continues_and_keeps_board_unseen(env):
     env['send']['1'] = TelegramSendError('timeout')
 
-    notifier_module.notifier()
+    run(env)
 
     assert env['sent_to'] == ['1', '2', '3']
     assert env['marked'] == ['Other']
@@ -79,60 +84,54 @@ def test_send_failure_continues_and_keeps_board_unseen(env):
 def test_blocked_user_is_removed_and_board_marked(env):
     env['send']['1'] = TelegramBlockedError('blocked')
 
-    notifier_module.notifier()
+    run(env)
 
     assert env['removed'] == ['1']
     assert sorted(env['marked']) == ['Other', 'Test']
 
 
-def test_each_subscription_fetched_once(env, monkeypatch):
+def test_each_subscription_fetched_once(env):
     fetched = []
 
-    def fake_get_new_threads(board, like):
-        fetched.append((board, like))
+    def fake_new_threads(subscription):
+        fetched.append(subscription)
         return [THREAD]
 
-    monkeypatch.setattr(
-        notifier_module, 'get_new_threads', fake_get_new_threads
-    )
+    env['feed'].new_threads = fake_new_threads
 
-    notifier_module.notifier()
+    run(env)
 
     assert sorted(fetched) == [('Other', '10'), ('Test', '10')]
 
 
 def test_fetch_failure_skips_only_that_board(env, monkeypatch):
-    def fake_get_new_threads(board, like):
-        if board == 'Test':
+    def fake_new_threads(subscription):
+        if subscription[0] == 'Test':
             raise ConnectionError('ptt down')
         return [THREAD]
 
-    monkeypatch.setattr(
-        notifier_module, 'get_new_threads', fake_get_new_threads
-    )
+    env['feed'].new_threads = fake_new_threads
     monkeypatch.setattr(
         notifier_module, 'log_error', lambda *args, **kwargs: None
     )
 
-    notifier_module.notifier()
+    run(env)
 
     assert env['sent_to'] == ['3']
     assert env['marked'] == ['Other']
 
 
-def test_subscriptions_are_fetched_concurrently(env, monkeypatch):
+def test_subscriptions_are_fetched_concurrently(env):
     # Both fetches must be in flight at once to pass the barrier
     barrier = threading.Barrier(2, timeout=5)
 
-    def fake_get_new_threads(board, like):
+    def fake_new_threads(subscription):
         barrier.wait()
         return [THREAD]
 
-    monkeypatch.setattr(
-        notifier_module, 'get_new_threads', fake_get_new_threads
-    )
+    env['feed'].new_threads = fake_new_threads
 
-    notifier_module.notifier()
+    run(env)
 
     assert sorted(env['marked']) == ['Other', 'Test']
 
@@ -154,6 +153,6 @@ def test_partial_send_keeps_only_unsent_threads_unseen(env, monkeypatch):
         ],
     )
 
-    notifier_module.notifier()
+    run(env)
 
     assert env['marked'] == ['Test']

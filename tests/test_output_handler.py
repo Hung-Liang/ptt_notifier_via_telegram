@@ -1,3 +1,4 @@
+from lib.handler.board_feed import Thread
 from lib.handler.output_handler import (
     create_board_message,
     create_board_message_with_threads,
@@ -6,7 +7,7 @@ from lib.handler.output_handler import (
 
 def make_threads(board, count, title_length):
     return [
-        ['10', 'x' * title_length, f'/bbs/{board}/M.{i}.A.html']
+        Thread('10', 'x' * title_length, f'/bbs/{board}/M.{i}.A.html')
         for i in range(count)
     ]
 
@@ -19,7 +20,7 @@ def test_single_board_fits_in_one_message():
 
 
 def test_title_special_characters_are_kept_and_escaped():
-    threads = {'Test': [['10', '[問卦] A&B <C> #1 +2', '/bbs/Test/M.1.A.html']]}
+    threads = {'Test': [Thread('10', '[問卦] A&B <C> #1 +2', '/bbs/Test/M.1.A.html')]}
 
     message = create_board_message(threads)[0]
 
@@ -44,7 +45,7 @@ def test_board_header_overflow_does_not_duplicate_content():
     first = make_threads('First', 1, 0)
     base = len(create_board_message({'First': first})[0])
     padding = 4096 - base - 10
-    first[0][1] = 'x' * padding
+    first[0] = first[0]._replace(title='x' * padding)
 
     threads = {'First': first, 'Second': make_threads('Second', 1, 10)}
     messages = create_board_message(threads)
@@ -71,4 +72,4 @@ def test_threads_are_tracked_per_message():
     ]
     for message, pairs in messages:
         for _, thread in pairs:
-            assert thread[2] in message
+            assert thread.url in message
