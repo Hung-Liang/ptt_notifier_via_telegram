@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -29,8 +30,12 @@ def save_json(path, data):
         `path` : path to save the json file.
         `data` : data to save.
     """
-    with open(path, 'w', encoding='utf-8') as f:
+    # Write to a temp file then replace, so concurrent readers
+    # (bot and notifier processes) never see a partially written file
+    tmp_path = Path(path).with_suffix('.tmp')
+    with open(tmp_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+    os.replace(tmp_path, path)
 
 
 def load_json(path):
