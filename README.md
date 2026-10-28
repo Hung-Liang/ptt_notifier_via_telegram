@@ -24,6 +24,13 @@ uv sync
 
 - `uv run main.py`
 
+### 使用 Docker 啟動
+
+- 先依上方說明設定`.env`
+- `docker compose up -d --build`
+- 查看日誌：`docker compose logs -f`
+- `assets/`與`logs/`會掛載到容器中，使用者資料與日誌保留在主機上
+
 ### 指令介紹
 
 - `/start` 開始使用
