@@ -12,6 +12,7 @@ from lib.utils.tools import (
     get_users,
     remove_board,
 )
+from lib.utils.logger import log
 from lib.utils.file_path import BOARDS_JSON_PATH, USER_JSON_PATH
 
 
@@ -106,7 +107,7 @@ def _get_users(bot, update):
 
 
 def error(update, context):
-    print(f'Update {update} caused error {context.error}')
+    log(f'Update {update} caused error {context.error}')
 
 
 def page_keyboard_maker(page):

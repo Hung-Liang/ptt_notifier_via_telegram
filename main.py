@@ -1,4 +1,5 @@
 from lib.notifier import notifier
+from lib.utils.logger import remove_old_logs
 from lib.utils.tools import run_listen_bot
 
 
@@ -21,5 +22,8 @@ scheduler.add_job(
     minute=get_interval_str(interval),
 )
 
+scheduler.add_job(remove_old_logs, 'cron', hour=0, minute=5)
+
+remove_old_logs()
 run_listen_bot()
 scheduler.start()
