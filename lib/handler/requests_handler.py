@@ -121,3 +121,27 @@ def mark_threads_seen(board, like, threads):
         `threads`: The threads that were sent.
     """
     update_old_threads(get_old_threads_path(board, like), threads)
+
+
+def remove_unsubscribed_records(subscriptions):
+    """Remove seen-thread records that no user subscribes to anymore.
+
+    A record is not updated while nobody subscribes to it, so a later
+    subscriber would get every thread posted in between; removing it makes
+    the next subscription start from a fresh baseline instead.
+
+    Args:
+        `subscriptions`: The (board, like) pairs still subscribed.
+    """
+    keep = {
+        Path(BOARDS_PATH, board, '{}_{}.json'.format(board, like))
+        for board, like in subscriptions
+    }
+
+    for path in Path(BOARDS_PATH).glob('*/*.json'):
+        if path not in keep:
+            path.unlink()
+
+    for folder in Path(BOARDS_PATH).iterdir():
+        if folder.is_dir() and not any(folder.iterdir()):
+            folder.rmdir()

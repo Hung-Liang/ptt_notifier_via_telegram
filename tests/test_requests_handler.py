@@ -99,3 +99,38 @@ def test_first_run_records_baseline_only(monkeypatch, tmp_path):
 
     requests_handler.mark_threads_seen('Test', '10', [second])
     assert requests_handler.get_new_threads('Test', '10') == []
+
+
+def test_remove_unsubscribed_records(monkeypatch, tmp_path):
+    monkeypatch.setattr(requests_handler, 'BOARDS_PATH', tmp_path)
+    for board, like in [('Test', '10'), ('Test', '50'), ('Gone', '10')]:
+        path = requests_handler.get_old_threads_path(board, like)
+        requests_handler.save_json(path, [])
+
+    requests_handler.remove_unsubscribed_records({('Test', '10')})
+
+    assert sorted(p.name for p in tmp_path.rglob('*.json')) == [
+        'Test_10.json'
+    ]
+    assert not (tmp_path / 'Gone').exists()
+
+
+def test_resubscribe_after_cleanup_starts_from_baseline(
+    monkeypatch, tmp_path
+):
+    old = ['10', 'old', '/bbs/Test/M.1.A.html']
+    new = ['10', 'new', '/bbs/Test/M.2.A.html']
+    fetched = [[old]]
+
+    monkeypatch.setattr(requests_handler, 'BOARDS_PATH', tmp_path)
+    monkeypatch.setattr(
+        requests_handler,
+        'get_ptt_title_and_url',
+        lambda board, like: fetched[-1],
+    )
+
+    assert requests_handler.get_new_threads('Test', '10') == []
+    requests_handler.remove_unsubscribed_records(set())
+
+    fetched.append([new, old])
+    assert requests_handler.get_new_threads('Test', '10') == []

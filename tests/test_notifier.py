@@ -21,6 +21,7 @@ def env(monkeypatch, tmp_path):
         'sent_to': [],
         'marked': [],
         'removed': [],
+        'subscribed': None,
     }
 
     class FakeHandler:
@@ -45,6 +46,11 @@ def env(monkeypatch, tmp_path):
         notifier_module, 'remove_user', state['removed'].append
     )
     monkeypatch.setattr(
+        notifier_module,
+        'remove_unsubscribed_records',
+        lambda subscriptions: state.update(subscribed=set(subscriptions)),
+    )
+    monkeypatch.setattr(
         notifier_module, 'HEARTBEAT_PATH', tmp_path / '.heartbeat'
     )
     return state
@@ -55,6 +61,7 @@ def test_all_sent_marks_every_board(env):
 
     assert env['sent_to'] == ['1', '2', '3']
     assert sorted(env['marked']) == ['Other', 'Test']
+    assert env['subscribed'] == {('Test', '10'), ('Other', '10')}
 
 
 def test_send_failure_continues_and_keeps_board_unseen(env):

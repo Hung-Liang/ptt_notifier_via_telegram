@@ -1,7 +1,11 @@
 import traceback
 
 from lib.handler.output_handler import create_board_message
-from lib.handler.requests_handler import get_new_threads, mark_threads_seen
+from lib.handler.requests_handler import (
+    get_new_threads,
+    mark_threads_seen,
+    remove_unsubscribed_records,
+)
 from lib.handler.telegram_handler import (
     TelegramBlockedError,
     TelegramHandler,
@@ -65,5 +69,7 @@ def notifier():
     for (board, like), threads in update_threads.items():
         if threads and (board, like) not in failed_keys:
             mark_threads_seen(board, like, threads)
+
+    remove_unsubscribed_records(update_threads.keys())
 
     HEARTBEAT_PATH.touch()
