@@ -1,5 +1,4 @@
 import os
-import threading
 
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -92,15 +91,6 @@ def page_turner(bot, update):
     bot.callback_query.message.edit_text(
         add_message(page), reply_markup=page_keyboard_maker(page)
     )
-
-
-def stop(bot, update):
-    uid = bot.message.from_user.id
-    if str(uid) == os.environ.get("admin_id"):
-        bot.message.reply_text('Bot Shutting Down')
-        threading.Thread(target=shutdown).start()
-    else:
-        bot.message.reply_text('You do not have permission')
 
 
 def _get_users(bot, update):
@@ -230,11 +220,6 @@ def choose_message():
     return '請選擇當推文數大於多少時通知'
 
 
-def shutdown():
-    updater.stop()
-    updater.is_idle = False
-
-
 def deleteuser_message(name):
     return f'掰掰{name}'
 
@@ -257,7 +242,6 @@ updater.dispatcher.add_handler(
 updater.dispatcher.add_handler(
     CallbackQueryHandler(delete_board, pattern='Delete')
 )
-updater.dispatcher.add_handler(CommandHandler('stop', stop))
 updater.dispatcher.add_handler(CommandHandler('users', _get_users))
 updater.dispatcher.add_error_handler(error)
 

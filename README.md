@@ -31,7 +31,6 @@ uv sync
 - `/add` 增加你訂閱的看板，並設定閥值
 - `/delete` 刪除某個你訂閱的看板
 - `/delete_me` 刪除自己在機器人Host端的資料
-- `/stop` 停止機器人 //ADMIN專用指令
 - `/users` 查看目前用戶 //ADMIN專用指令
 
 ### 修改看板列表
