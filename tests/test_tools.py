@@ -45,3 +45,21 @@ def test_users_lock_is_released(monkeypatch, tmp_path):
     # A second acquire would block or raise if the first leaked
     with tools.users_lock():
         pass
+
+
+class FakeProcess:
+    def __init__(self, returncode):
+        self.returncode = returncode
+
+    def poll(self):
+        return self.returncode
+
+
+def test_keep_listen_bot_alive(monkeypatch):
+    restarted = FakeProcess(None)
+    monkeypatch.setattr(tools, 'run_listen_bot', lambda: restarted)
+    monkeypatch.setattr(tools, 'log', lambda *args: None)
+
+    running = FakeProcess(None)
+    assert tools.keep_listen_bot_alive(running) is running
+    assert tools.keep_listen_bot_alive(FakeProcess(1)) is restarted

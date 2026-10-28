@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from lib.utils.file_path import BOARDS_JSON_PATH, USER_JSON_PATH
+from lib.utils.logger import log
 
 if os.name == 'nt':
     import msvcrt
@@ -97,8 +98,28 @@ def is_valid_board(board):
 
 
 def run_listen_bot():
-    """Run listen_bot.py as a subprocess."""
-    subprocess.Popen([sys.executable, 'listen_bot.py'])
+    """Run listen_bot.py as a subprocess.
+
+    Returns:
+        `subprocess.Popen` : the listen_bot process.
+    """
+    return subprocess.Popen([sys.executable, 'listen_bot.py'])
+
+
+def keep_listen_bot_alive(process):
+    """Restart listen_bot.py if it has exited.
+
+    Args:
+        `process` : the listen_bot process.
+
+    Returns:
+        `subprocess.Popen` : the running listen_bot process.
+    """
+    if process.poll() is None:
+        return process
+
+    log('[listen_bot]', f'exited with {process.returncode}, restarting')
+    return run_listen_bot()
 
 
 def check_if_user_exist(uid):
