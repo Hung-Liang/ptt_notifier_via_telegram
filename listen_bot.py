@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackQueryHandler, CommandHandler, Updater
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 from lib.utils.tools import (
     MAX_BOARDS,
     THRESHOLDS,
@@ -22,146 +22,150 @@ from lib.utils.file_path import BOARDS_JSON_PATH
 load_dotenv()
 
 
-def start(bot, update):
-    uid = bot.message.from_user.id
-    name = bot.message.from_user.name
+async def start(update, context):
+    uid = update.message.from_user.id
+    name = update.message.from_user.name
 
     if not check_if_user_exist(uid):
         initial_user(uid, name)
 
-        bot.message.reply_text(start_message(name))
+        await update.message.reply_text(start_message(name))
     else:
-        bot.message.reply_text(already_register_message(name))
+        await update.message.reply_text(already_register_message(name))
 
 
-def add(bot, update):
-    if not check_if_user_exist(bot.message.from_user.id):
-        bot.message.reply_text(not_registered_message())
+async def add(update, context):
+    if not check_if_user_exist(update.message.from_user.id):
+        await update.message.reply_text(not_registered_message())
         return
 
     first_page = get_page_numbers()[0]
-    bot.message.reply_text(
+    await update.message.reply_text(
         add_message(), reply_markup=page_keyboard_maker(first_page)
     )
 
 
-def delete(bot, update):
-    uid = bot.message.from_user.id
+async def delete(update, context):
+    uid = update.message.from_user.id
     if not check_if_user_exist(uid):
-        bot.message.reply_text(not_registered_message())
+        await update.message.reply_text(not_registered_message())
         return
 
     users = get_users()
     boards = users[str(uid)]['boards']
     if not boards:
-        bot.message.reply_text(no_board_message())
+        await update.message.reply_text(no_board_message())
         return
 
-    bot.message.reply_text(
+    await update.message.reply_text(
         delete_message(),
         reply_markup=delete_board_maker(boards),
     )
 
 
-def me(bot, update):
-    uid = bot.message.from_user.id
-    name = bot.message.from_user.name
+async def me(update, context):
+    uid = update.message.from_user.id
+    name = update.message.from_user.name
     if not check_if_user_exist(uid):
-        bot.message.reply_text(not_registered_message())
+        await update.message.reply_text(not_registered_message())
         return
 
     users = get_users()
-    bot.message.reply_text(user_message(name, users[str(uid)]['boards']))
+    await update.message.reply_text(
+        user_message(name, users[str(uid)]['boards'])
+    )
 
 
-def delete_me(bot, update):
-    uid = bot.message.from_user.id
-    name = bot.message.from_user.name
+async def delete_me(update, context):
+    uid = update.message.from_user.id
+    name = update.message.from_user.name
     if not check_if_user_exist(uid):
-        bot.message.reply_text(not_registered_message())
+        await update.message.reply_text(not_registered_message())
         return
 
     remove_user(uid)
-    bot.message.reply_text(deleteuser_message(name))
+    await update.message.reply_text(deleteuser_message(name))
 
 
-def board_register(bot, update):
-    bot.callback_query.answer()
-    fields = parse_callback(bot.callback_query.data, 1)
+async def board_register(update, context):
+    await update.callback_query.answer()
+    fields = parse_callback(update.callback_query.data, 1)
     if fields is None or not is_valid_board(fields[0]):
-        log(f'Invalid callback data: {bot.callback_query.data!r}')
+        log(f'Invalid callback data: {update.callback_query.data!r}')
         return
 
     board = fields[0]
-    bot.callback_query.message.edit_text(
+    await update.callback_query.message.edit_text(
         choose_message(), reply_markup=select_threshold_keyboard(board)
     )
 
 
-def delete_board(bot, update):
-    bot.callback_query.answer()
-    board = bot.callback_query.data.split(',')[1]
-    uid = bot.callback_query.from_user.id
-    name = bot.callback_query.from_user.name
+async def delete_board(update, context):
+    await update.callback_query.answer()
+    board = update.callback_query.data.split(',')[1]
+    uid = update.callback_query.from_user.id
+    name = update.callback_query.from_user.name
 
     # Old keyboards stay clickable after /delete_me
     if not check_if_user_exist(uid):
-        bot.callback_query.message.edit_text(not_registered_message())
+        await update.callback_query.message.edit_text(not_registered_message())
         return
 
     remove_board(uid, board)
-    bot.callback_query.message.edit_text(delete_confirm_message(name, board))
+    await update.callback_query.message.edit_text(
+        delete_confirm_message(name, board)
+    )
 
 
-def confirm_and_write(bot, update):
-    bot.callback_query.answer()
-    fields = parse_callback(bot.callback_query.data, 2)
+async def confirm_and_write(update, context):
+    await update.callback_query.answer()
+    fields = parse_callback(update.callback_query.data, 2)
     if (
         fields is None
         or not is_valid_board(fields[0])
         or fields[1] not in THRESHOLDS
     ):
-        log(f'Invalid callback data: {bot.callback_query.data!r}')
+        log(f'Invalid callback data: {update.callback_query.data!r}')
         return
 
     board, threshold = fields
-    uid = bot.callback_query.from_user.id
-    name = bot.callback_query.from_user.name
+    uid = update.callback_query.from_user.id
+    name = update.callback_query.from_user.name
 
     if not check_if_user_exist(uid):
-        bot.callback_query.message.edit_text(not_registered_message())
+        await update.callback_query.message.edit_text(not_registered_message())
         return
 
     if not add_or_update_board(uid, board, threshold):
-        bot.callback_query.message.edit_text(error_message())
+        await update.callback_query.message.edit_text(error_message())
         return
 
-    bot.callback_query.message.edit_text(
+    await update.callback_query.message.edit_text(
         confirm_message(name, board, threshold)
     )
 
 
-def page_turner(bot, update):
-    bot.callback_query.answer()
-    fields = parse_callback(bot.callback_query.data, 1)
+async def page_turner(update, context):
+    await update.callback_query.answer()
+    fields = parse_callback(update.callback_query.data, 1)
     pages = get_page_numbers()
     if (
         fields is None
         or not fields[0].isdigit()
         or int(fields[0]) not in pages
     ):
-        log(f'Invalid callback data: {bot.callback_query.data!r}')
+        log(f'Invalid callback data: {update.callback_query.data!r}')
         return
 
     page = int(fields[0])
-    bot.callback_query.message.edit_text(
+    await update.callback_query.message.edit_text(
         add_message(pages.index(page) + 1),
         reply_markup=page_keyboard_maker(page),
     )
 
 
-def _get_users(bot, update):
-    uid = bot.message.from_user.id
+async def _get_users(update, context):
+    uid = update.message.from_user.id
     if str(uid) == os.environ.get("admin_id"):
         users = get_users()
         for key in users:
@@ -169,10 +173,10 @@ def _get_users(bot, update):
             for b in users[key]['boards']:
                 temp = temp + b + ' ' + users[key]['boards'][b] + '\n'
 
-            bot.message.reply_text(temp)
+            await update.message.reply_text(temp)
 
 
-def error(update, context):
+async def error(update, context):
     log(f'Update {update} caused error {context.error}')
 
 
@@ -311,25 +315,21 @@ def no_board_message():
     return '你目前沒有訂閱任何看板，可以使用 /add 新增'
 
 
-updater = Updater(os.environ.get("telegram_token"), use_context=True)
-updater.dispatcher.add_handler(CommandHandler('start', start))
-updater.dispatcher.add_handler(CommandHandler('me', me))
-updater.dispatcher.add_handler(CommandHandler('add', add))
-updater.dispatcher.add_handler(CommandHandler('delete', delete))
-updater.dispatcher.add_handler(CommandHandler('delete_me', delete_me))
-updater.dispatcher.add_handler(
-    CallbackQueryHandler(page_turner, pattern='Page')
+application = (
+    Application.builder().token(os.environ.get("telegram_token")).build()
 )
-updater.dispatcher.add_handler(
-    CallbackQueryHandler(board_register, pattern='Board')
-)
-updater.dispatcher.add_handler(
+application.add_handler(CommandHandler('start', start))
+application.add_handler(CommandHandler('me', me))
+application.add_handler(CommandHandler('add', add))
+application.add_handler(CommandHandler('delete', delete))
+application.add_handler(CommandHandler('delete_me', delete_me))
+application.add_handler(CallbackQueryHandler(page_turner, pattern='Page'))
+application.add_handler(CallbackQueryHandler(board_register, pattern='Board'))
+application.add_handler(
     CallbackQueryHandler(confirm_and_write, pattern='Confirm')
 )
-updater.dispatcher.add_handler(
-    CallbackQueryHandler(delete_board, pattern='Delete')
-)
-updater.dispatcher.add_handler(CommandHandler('users', _get_users))
-updater.dispatcher.add_error_handler(error)
+application.add_handler(CallbackQueryHandler(delete_board, pattern='Delete'))
+application.add_handler(CommandHandler('users', _get_users))
+application.add_error_handler(error)
 
-updater.start_polling()
+application.run_polling()
