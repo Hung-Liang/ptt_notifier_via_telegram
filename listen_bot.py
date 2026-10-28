@@ -11,6 +11,7 @@ from lib.utils.tools import (
     save_json,
     add_or_update_board,
     get_users,
+    remove_board,
 )
 from lib.utils.file_path import BOARDS_JSON_PATH, USER_JSON_PATH
 
@@ -70,7 +71,7 @@ def delete_board(bot, update):
     board = bot.callback_query.data.split(',')[1]
     uid = bot.callback_query.from_user.id
     name = bot.callback_query.from_user.name
-    delete_board(uid, board)
+    remove_board(uid, board)
     bot.callback_query.message.edit_text(delete_confirm_message(name, board))
 
 
