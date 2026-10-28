@@ -22,7 +22,8 @@ def fetch(url: str):
         The content of the url.
     """
     headers = {'User-Agent': "Googlebot/2.1 (+http://www.google.com/bot.html)"}
-    res = requests.get(url, headers=headers)
+    res = requests.get(url, headers=headers, timeout=10)
+    res.raise_for_status()
     return res.text
 
 
