@@ -23,7 +23,7 @@ dev = [
 
 [tool.ruff]
 line-length = 79
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 # Correctness-focused rules only; style rules are left out to avoid churn
