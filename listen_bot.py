@@ -10,7 +10,6 @@ from telegram.ext import (
     Defaults,
     TypeHandler,
 )
-from lib.handler.delivery import pack
 from lib.utils.config import ADMIN_MODE, MAX_BOARDS, THRESHOLDS
 from lib.utils.tools import (
     initial_user,
@@ -24,6 +23,7 @@ from lib.utils.tools import (
     update_user_name,
 )
 from lib.utils.logger import log_error, log_warning
+from lib.utils.message import pack_texts
 from lib.utils.file_path import BOARDS_JSON_PATH
 
 
@@ -225,9 +225,9 @@ def users_messages(users):
         for board, threshold in user['boards'].items():
             entry += f'{board} {threshold}\n'
         entry += '\n'
-        entries.append((entry, None))
+        entries.append(entry)
 
-    return [message for message, _ in pack([('', entries)])]
+    return pack_texts(entries)
 
 
 def get_page_numbers():

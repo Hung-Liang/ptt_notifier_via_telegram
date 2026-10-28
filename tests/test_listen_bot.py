@@ -5,8 +5,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import listen_bot
-from lib.handler.delivery import MESSAGE_LIMIT
 from lib.utils import tools
+from lib.utils.message import MESSAGE_LIMIT
 
 
 def keyboard_texts(markup):

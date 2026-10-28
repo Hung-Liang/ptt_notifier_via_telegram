@@ -3,7 +3,7 @@ import threading
 import pytest
 
 from lib import notifier as notifier_module
-from lib.handler.board_feed import Thread
+from lib.handler.board_feed import Subscription, Thread
 from lib.handler.delivery import DeliveryResult
 
 THREAD = Thread('10', 'title', '/bbs/Test/M.1.A.html')
@@ -15,7 +15,7 @@ class FakeBoardFeed:
         self.new_threads = lambda subscription: [THREAD]
 
     def mark_seen(self, subscription, threads):
-        self.state['marked'].append(subscription[0])
+        self.state['marked'].append(subscription.board)
 
     def prune(self, subscriptions_to_keep):
         self.state['subscribed'] = set(subscriptions_to_keep)
@@ -25,9 +25,9 @@ class FakeDelivery:
     def __init__(self, state):
         self.state = state
 
-    def deliver(self, uid, threads_by_board):
+    def deliver(self, uid, threads_by_subscription):
         # Like Delivery, nothing is sent when there are no threads
-        if any(threads_by_board.values()):
+        if any(threads_by_subscription.values()):
             self.state['sent_to'].append(uid)
         return self.state['results'].get(uid, DeliveryResult())
 
@@ -73,7 +73,9 @@ def test_all_sent_marks_every_board(env):
 
 
 def test_send_failure_continues_and_keeps_board_unseen(env):
-    env['results']['1'] = DeliveryResult(undelivered=[('Test', THREAD)])
+    env['results']['1'] = DeliveryResult(
+        undelivered=[(Subscription('Test', '10'), THREAD)]
+    )
 
     run(env)
 
@@ -107,7 +109,7 @@ def test_each_subscription_fetched_once(env):
 
 def test_fetch_failure_skips_only_that_board(env, monkeypatch):
     def fake_new_threads(subscription):
-        if subscription[0] == 'Test':
+        if subscription.board == 'Test':
             raise ConnectionError('ptt down')
         return [THREAD]
 
@@ -141,7 +143,9 @@ def test_partial_send_keeps_only_unsent_threads_unseen(env):
     env['users'] = {
         '1': {'name': 'a', 'boards': {'Test': '10', 'Other': '10'}}
     }
-    env['results']['1'] = DeliveryResult(undelivered=[('Other', THREAD)])
+    env['results']['1'] = DeliveryResult(
+        undelivered=[(Subscription('Other', '10'), THREAD)]
+    )
 
     run(env)
 

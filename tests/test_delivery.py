@@ -1,58 +1,10 @@
-from lib.handler.board_feed import Thread
-from lib.handler.delivery import MESSAGE_LIMIT, Delivery, pack
+from lib.handler.board_feed import Subscription, Thread
+from lib.handler.delivery import Delivery
 from lib.handler.telegram_handler import (
     TelegramBlockedError,
     TelegramSendError,
 )
-
-
-def entries(*texts):
-    return [(text, i) for i, text in enumerate(texts)]
-
-
-def test_pack_fits_in_one_message():
-    assert pack([('H\n', entries('a', 'b'))]) == [('H\nab', [0, 1])]
-
-
-def test_pack_message_may_be_exactly_the_limit():
-    half = MESSAGE_LIMIT // 2
-    exact = pack([('', entries('a' * half, 'b' * half))])
-    over = pack([('', entries('a' * half, 'b' * (half + 1)))])
-
-    assert [len(m) for m, _ in exact] == [MESSAGE_LIMIT]
-    assert [(len(m), p) for m, p in over] == [(half, [0]), (half + 1, [1])]
-
-
-def test_pack_repeats_prefix_after_split():
-    texts = ['x' * 1000 for _ in range(5)]
-
-    messages = pack([('H\n', entries(*texts))])
-
-    assert [p for _, p in messages] == [[0, 1, 2, 3], [4]]
-    assert all(m.startswith('H\n') for m, _ in messages)
-    assert all(len(m) <= MESSAGE_LIMIT for m, _ in messages)
-
-
-def test_pack_moves_prefix_with_its_first_entry():
-    # The second prefix fits after the first group but its first entry
-    # doesn't, so both start the next message
-    first = 'a' * (MESSAGE_LIMIT - 10)
-
-    messages = pack([('', entries(first)), ('HEADER\n', entries('b' * 20))])
-
-    assert messages == [(first, [0]), ('HEADER\n' + 'b' * 20, [0])]
-
-
-def test_pack_skips_empty_groups_and_input():
-    assert pack([]) == []
-    assert pack([('H\n', [])]) == []
-
-
-def test_pack_truncates_oversize_entry():
-    messages = pack([('H\n', entries('a', 'b' * (MESSAGE_LIMIT + 1), 'c'))])
-
-    assert [p for _, p in messages] == [[0], [1], [2]]
-    assert [len(m) for m, _ in messages] == [3, MESSAGE_LIMIT, 3]
+from lib.utils.message import MESSAGE_LIMIT
 
 
 class FakeSender:
@@ -73,6 +25,10 @@ class FakeSender:
         return outcome
 
 
+def sub(board):
+    return Subscription(board, '10')
+
+
 def make_threads(board, count, title_length=10):
     return [
         Thread('10', 'x' * title_length, f'/bbs/{board}/M.{i}.A.html')
@@ -83,7 +39,9 @@ def make_threads(board, count, title_length=10):
 def test_all_accepted_leaves_nothing_undelivered():
     sender = FakeSender()
 
-    result = Delivery(sender).deliver(1, {'Test': make_threads('Test', 2)})
+    result = Delivery(sender).deliver(
+        1, {sub('Test'): make_threads('Test', 2)}
+    )
 
     assert result.undelivered == []
     assert result.blocked is False
@@ -93,13 +51,13 @@ def test_all_accepted_leaves_nothing_undelivered():
 
 def many_messages():
     """Boards long enough to need several messages."""
-    return {board: make_threads(board, 20, 80) for board in 'ABC'}
+    return {sub(board): make_threads(board, 20, 80) for board in 'ABC'}
 
 
-def all_pairs(threads_by_board):
+def all_pairs(threads_by_subscription):
     return [
-        (board, thread)
-        for board, threads in threads_by_board.items()
+        (subscription, thread)
+        for subscription, threads in threads_by_subscription.items()
         for thread in threads
     ]
 
@@ -113,11 +71,11 @@ def test_send_failure_reports_failed_and_later_threads_undelivered():
     # Only the first message arrived; nothing after the failure was tried
     assert len(sender.texts) == 2
     assert result.undelivered == [
-        (board, thread)
-        for board, thread in all_pairs(threads)
+        (subscription, thread)
+        for subscription, thread in all_pairs(threads)
         if thread.url not in sender.texts[0]
     ]
-    assert ('C', threads['C'][-1]) in result.undelivered
+    assert (sub('C'), threads[sub('C')][-1]) in result.undelivered
     assert result.blocked is False
 
 
@@ -142,15 +100,15 @@ def test_blocked_stops_sending():
     assert result.undelivered == []
 
 
-def sent_texts(threads_by_board):
+def sent_texts(threads_by_subscription):
     sender = FakeSender()
-    Delivery(sender).deliver(1, threads_by_board)
+    Delivery(sender).deliver(1, threads_by_subscription)
     return sender.texts
 
 
 def test_titles_are_escaped():
     title = '[問卦] A&B <C> #1 +2'
-    threads = {'Test': [Thread('10', title, '/bbs/T/M.1.A.html')]}
+    threads = {sub('Test'): [Thread('10', title, '/bbs/T/M.1.A.html')]}
 
     assert '[問卦] A&amp;B &lt;C&gt; #1 +2' in sent_texts(threads)[0]
 
@@ -158,7 +116,7 @@ def test_titles_are_escaped():
 def test_empty_input_and_boards_send_nothing():
     sender = FakeSender()
 
-    result = Delivery(sender).deliver(1, {'Test': []})
+    result = Delivery(sender).deliver(1, {sub('Test'): []})
 
     assert sender.texts == []
     assert result.undelivered == []
@@ -167,8 +125,8 @@ def test_empty_input_and_boards_send_nothing():
 
 def test_long_input_splits_without_losing_threads():
     threads = {
-        'First': make_threads('First', 100, 80),
-        'Second': make_threads('Second', 2),
+        sub('First'): make_threads('First', 100, 80),
+        sub('Second'): make_threads('Second', 2),
     }
 
     texts = sent_texts(threads)
@@ -185,10 +143,12 @@ def test_board_header_does_not_end_a_message():
     # Fill the first message until the second board's header fits but
     # its first thread doesn't
     first = make_threads('First', 1, 0)
-    base = len(sent_texts({'First': first})[0])
+    base = len(sent_texts({sub('First'): first})[0])
     first[0] = first[0]._replace(title='x' * (MESSAGE_LIMIT - base - 60))
 
-    texts = sent_texts({'First': first, 'Second': make_threads('Second', 1)})
+    texts = sent_texts(
+        {sub('First'): first, sub('Second'): make_threads('Second', 1)}
+    )
 
     assert len(texts) == 2
     assert '<b>SECOND</b>' not in texts[0]

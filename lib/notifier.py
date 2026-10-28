@@ -1,9 +1,10 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
+from itertools import starmap
 
 from dotenv import load_dotenv
 
-from lib.handler.board_feed import BoardFeed
+from lib.handler.board_feed import BoardFeed, Subscription
 from lib.handler.delivery import Delivery
 from lib.handler.telegram_handler import TelegramHandler
 from lib.utils.file_path import HEARTBEAT_PATH
@@ -36,7 +37,7 @@ def notifier(board_feed=BOARD_FEED, delivery=None):
     # Each board and threshold is fetched once, shared by its subscribers
     subscriptions = list(
         dict.fromkeys(
-            (board, like)
+            Subscription(board, like)
             for user in users.values()
             for board, like in user["boards"].items()
         )
@@ -57,8 +58,10 @@ def notifier(board_feed=BOARD_FEED, delivery=None):
     for uid in users:
 
         current_threads = {
-            board: update_threads[(board, like)]
-            for board, like in users[uid]["boards"].items()
+            subscription: update_threads[subscription]
+            for subscription in starmap(
+                Subscription, users[uid]["boards"].items()
+            )
         }
 
         result = delivery.deliver(uid, current_threads)
@@ -68,18 +71,18 @@ def notifier(board_feed=BOARD_FEED, delivery=None):
             remove_user(uid)
 
         failed_threads.update(
-            (board, users[uid]["boards"][board], thread.url)
-            for board, thread in result.undelivered
+            (subscription, thread.url)
+            for subscription, thread in result.undelivered
         )
 
-    for (board, like), threads in update_threads.items():
+    for subscription, threads in update_threads.items():
         sent_threads = [
             thread
             for thread in threads
-            if (board, like, thread.url) not in failed_threads
+            if (subscription, thread.url) not in failed_threads
         ]
         if sent_threads:
-            board_feed.mark_seen((board, like), sent_threads)
+            board_feed.mark_seen(subscription, sent_threads)
 
     board_feed.prune(update_threads.keys())
 

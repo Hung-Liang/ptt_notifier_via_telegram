@@ -26,7 +26,14 @@ class Thread(NamedTuple):
     url: str
 
 
-def fetch(url: str):
+class Subscription(NamedTuple):
+    """A board followed for threads with at least `threshold` likes."""
+
+    board: str
+    threshold: str
+
+
+def fetch_page(url: str):
     """Fetch the content of the url.
 
     Args:
@@ -58,13 +65,15 @@ def parse_threads(text: str):
 
 
 class BoardFeed:
-    """New threads of each Subscription, a (board, threshold) pair.
+    """New threads of each Subscription.
 
     Searches PTT for threads with at least `threshold` likes and keeps a
-    Seen-thread record per Subscription under `records_path`.
+    Seen-thread record per Subscription under `records_path`. `fetch`
+    returns the HTML text of a url and raises `requests.HTTPError` like
+    `fetch_page`.
     """
 
-    def __init__(self, records_path=BOARDS_PATH, fetch=fetch):
+    def __init__(self, records_path=BOARDS_PATH, fetch=fetch_page):
         self.records_path = Path(records_path)
         self.fetch = fetch
 
@@ -126,11 +135,12 @@ class BoardFeed:
         Stops early when a page is missing or empty, keeping the threads
         already fetched.
         """
-        board, like = subscription
         threads = []
 
         for page in range(1, MAX_PAGE + 1):
-            url = SEARCH_URL.format(board, page, like)
+            url = SEARCH_URL.format(
+                subscription.board, page, subscription.threshold
+            )
             try:
                 text = self.fetch(url)
             except requests.HTTPError as e:
@@ -150,8 +160,10 @@ class BoardFeed:
         return threads
 
     def _record_path(self, subscription):
-        board, like = subscription
-        return Path(self.records_path, board, '{}_{}.json'.format(board, like))
+        board, threshold = subscription
+        return Path(
+            self.records_path, board, '{}_{}.json'.format(board, threshold)
+        )
 
     def _load(self, path):
         return [Thread(*thread) for thread in load_json(path)]

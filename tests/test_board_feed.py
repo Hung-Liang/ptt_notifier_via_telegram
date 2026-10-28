@@ -3,9 +3,9 @@ import json
 import pytest
 import requests
 
-from lib.handler.board_feed import MAX_PAGE, BoardFeed, Thread
+from lib.handler.board_feed import MAX_PAGE, BoardFeed, Subscription, Thread
 
-SUBSCRIPTION = ('Test', '10')
+SUBSCRIPTION = Subscription('Test', '10')
 
 
 def thread(i):
@@ -130,10 +130,10 @@ def test_other_http_errors_raise(tmp_path, page, status_code):
 def test_prune_removes_unsubscribed_records(tmp_path):
     ptt = FakePtt([thread(1)])
     feed = make_feed(tmp_path, ptt)
-    for subscription in [('Test', '10'), ('Test', '50'), ('Gone', '10')]:
-        feed.new_threads(subscription)
+    for board, threshold in [('Test', '10'), ('Test', '50'), ('Gone', '10')]:
+        feed.new_threads(Subscription(board, threshold))
 
-    feed.prune({('Test', '10')})
+    feed.prune({SUBSCRIPTION})
 
     assert sorted(p.name for p in tmp_path.rglob('*.json')) == [
         'Test_10.json'
