@@ -1,9 +1,10 @@
+from zoneinfo import ZoneInfo
+
 from lib.notifier import notifier
 from lib.utils.logger import remove_old_logs
 from lib.utils.tools import keep_listen_bot_alive, run_listen_bot
 
 
-import pytz
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 
@@ -11,7 +12,7 @@ def get_interval_str(interval):
     return '0-59/{}'.format(interval)
 
 
-timezone = pytz.timezone('Asia/Taipei')
+timezone = ZoneInfo('Asia/Taipei')
 
 scheduler = BlockingScheduler(timezone=timezone)
 
