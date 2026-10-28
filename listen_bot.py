@@ -32,21 +32,38 @@ def start(bot, update):
 
 
 def add(bot, update):
+    if not check_if_user_exist(bot.message.from_user.id):
+        bot.message.reply_text(not_registered_message())
+        return
+
     bot.message.reply_text(add_message(), reply_markup=page_keyboard_maker(1))
 
 
 def delete(bot, update):
     uid = bot.message.from_user.id
+    if not check_if_user_exist(uid):
+        bot.message.reply_text(not_registered_message())
+        return
+
     users = get_users()
+    boards = users[str(uid)]['boards']
+    if not boards:
+        bot.message.reply_text(no_board_message())
+        return
+
     bot.message.reply_text(
         delete_message(),
-        reply_markup=delete_board_maker(users[str(uid)]['boards']),
+        reply_markup=delete_board_maker(boards),
     )
 
 
 def me(bot, update):
     uid = bot.message.from_user.id
     name = bot.message.from_user.name
+    if not check_if_user_exist(uid):
+        bot.message.reply_text(not_registered_message())
+        return
+
     users = get_users()
     bot.message.reply_text(user_message(name, users[str(uid)]['boards']))
 
@@ -54,6 +71,10 @@ def me(bot, update):
 def delete_me(bot, update):
     uid = bot.message.from_user.id
     name = bot.message.from_user.name
+    if not check_if_user_exist(uid):
+        bot.message.reply_text(not_registered_message())
+        return
+
     users = get_users()
     users.pop(str(uid))
     bot.message.reply_text(deleteuser_message(name))
@@ -61,6 +82,7 @@ def delete_me(bot, update):
 
 
 def board_register(bot, update):
+    bot.callback_query.answer()
     board = bot.callback_query.data.split(',')[1]
     bot.callback_query.message.edit_text(
         choose_message(), reply_markup=select_threshold_keyboard(board)
@@ -68,17 +90,29 @@ def board_register(bot, update):
 
 
 def delete_board(bot, update):
+    bot.callback_query.answer()
     board = bot.callback_query.data.split(',')[1]
     uid = bot.callback_query.from_user.id
     name = bot.callback_query.from_user.name
+
+    # Old keyboards stay clickable after /delete_me
+    if not check_if_user_exist(uid):
+        bot.callback_query.message.edit_text(not_registered_message())
+        return
+
     remove_board(uid, board)
     bot.callback_query.message.edit_text(delete_confirm_message(name, board))
 
 
 def confirm_and_write(bot, update):
+    bot.callback_query.answer()
     board, threshold = bot.callback_query.data.split(',')[1:]
     uid = bot.callback_query.from_user.id
     name = bot.callback_query.from_user.name
+
+    if not check_if_user_exist(uid):
+        bot.callback_query.message.edit_text(not_registered_message())
+        return
 
     add_or_update_board(uid, board, threshold)
 
@@ -88,6 +122,7 @@ def confirm_and_write(bot, update):
 
 
 def page_turner(bot, update):
+    bot.callback_query.answer()
     page = int(bot.callback_query.data.split(',')[1])
     bot.callback_query.message.edit_text(
         add_message(page), reply_markup=page_keyboard_maker(page)
@@ -221,6 +256,14 @@ def choose_message():
 
 def deleteuser_message(name):
     return f'掰掰{name}'
+
+
+def not_registered_message():
+    return '你還沒註冊，請先使用 /start'
+
+
+def no_board_message():
+    return '你目前沒有訂閱任何看板，可以使用 /add 新增'
 
 
 updater = Updater(os.environ.get("telegram_token"), use_context=True)

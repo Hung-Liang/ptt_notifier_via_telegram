@@ -15,6 +15,14 @@ def test_single_board_fits_in_one_message():
     assert messages[0].startswith('<b>TEST</b>')
 
 
+def test_title_special_characters_are_kept_and_escaped():
+    threads = {'Test': [['10', '[問卦] A&B <C> #1 +2', '/bbs/Test/M.1.A.html']]}
+
+    message = create_board_message(threads)[0]
+
+    assert '[問卦] A&amp;B &lt;C&gt; #1 +2' in message
+
+
 def test_empty_boards_are_skipped():
     assert create_board_message({'Test': []}) == []
 

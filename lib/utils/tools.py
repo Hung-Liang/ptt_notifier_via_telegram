@@ -105,7 +105,8 @@ def remove_board(uid, board):
         `board` : board to remove.
     """
     users = get_users()
-    users[str(uid)]['boards'].pop(board)
+    # The board may already be gone if an old delete keyboard is reused
+    users[str(uid)]['boards'].pop(board, None)
     save_json(USER_JSON_PATH, users)
 
 

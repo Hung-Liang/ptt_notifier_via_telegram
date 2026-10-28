@@ -1,3 +1,5 @@
+import html
+
 from bs4 import BeautifulSoup
 from lib.utils.tools import load_json, save_json
 
@@ -11,13 +13,7 @@ def parse_title_text(title_text: str):
     Returns:
         The parsed title text.
     """
-    return (
-        title_text.replace('\n', '')
-        .replace('&', '')
-        .replace('#', '')
-        .replace('+', '')
-        .replace('<', '')
-    )
+    return title_text.replace('\n', '')
 
 
 def find_thread_info(soup: BeautifulSoup):
@@ -112,7 +108,7 @@ def create_board_message(threads):
         for thread in threads[board]:
             new_message = (
                 f"<a href='https://www.ptt.cc{thread[2]}'><b>[{thread[0]}]"
-                f" {thread[1]}</b></a>{split_line}"
+                f" {html.escape(thread[1])}</b></a>{split_line}"
             )
 
             if len(new_message + message) >= 4096:
