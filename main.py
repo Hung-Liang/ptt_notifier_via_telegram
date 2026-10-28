@@ -1,14 +1,25 @@
-from time import sleep, time
 from lib.notifier import notifier
+from lib.utils.tools import run_listen_bot
 
-if __name__ == '__main__':
 
-    counter = 0
+import pytz
+from apscheduler.schedulers.blocking import BlockingScheduler
 
-    while True:
-        sleep(1800 - time() % 1800)
 
-        notifier()
+def get_interval_str(interval):
+    return '0-59/{}'.format(interval)
 
-        counter += 1
-        print(f'Beta Fetch {counter} times...')
+
+timezone = pytz.timezone('Asia/Taipei')
+
+scheduler = BlockingScheduler(timezone=timezone)
+
+interval = 30
+scheduler.add_job(
+    notifier,
+    'cron',
+    minute=get_interval_str(interval),
+)
+
+run_listen_bot()
+scheduler.start()
