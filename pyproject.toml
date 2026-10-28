@@ -1,0 +1,17 @@
+[project]
+name = "ptt-notifier-via-telegram"
+version = "0.1.0"
+# python-telegram-bot 13.x imports imghdr, which was removed in Python 3.13
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    # Must match the exact version pinned by python-telegram-bot 13.11
+    "apscheduler==3.6.3",
+    "beautifulsoup4>=4.15.0",
+    "lxml>=6.1.3",
+    "python-dotenv==0.19.2",
+    "python-telegram-bot==13.11",
+    "pytz>=2026.5",
+    "requests==2.27.1",
+    # APScheduler 3.6.3 imports pkg_resources, removed from newer setuptools
+    "setuptools<81",
+]

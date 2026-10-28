@@ -7,9 +7,9 @@
 
 ### 安裝
 
-- 設定環境
+- 安裝 [uv](https://docs.astral.sh/uv/) 後設定環境
 ```
-pip install -r requirements.txt
+uv sync
 ```
 - 設定`.env`檔案
     - 在根目錄設定檔案名為`.env`的檔案
@@ -22,7 +22,7 @@ pip install -r requirements.txt
 
 ### 啟動
 
-- `Python main.py`
+- `uv run main.py`
 
 ### 指令介紹
 
