@@ -50,7 +50,7 @@ class Delivery:
                 return DeliveryResult(blocked=True)
             except TelegramSendError as e:
                 log_error(
-                    '[delivery]', f'{uid} send failed, retry next run: {e}'
+                    '[notifier]', f'{uid} send failed, retry next run: {e}'
                 )
                 return DeliveryResult(
                     undelivered=[
@@ -59,7 +59,7 @@ class Delivery:
                 )
 
         if rejected:
-            log_warning('[delivery]', f'{uid} rejected some messages')
+            log_warning('[notifier]', f'{uid} rejected some messages')
 
         return DeliveryResult()
 

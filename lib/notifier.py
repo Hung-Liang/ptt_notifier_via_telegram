@@ -16,7 +16,6 @@ load_dotenv()
 FETCH_WORKERS = 4
 
 BOARD_FEED = BoardFeed()
-DELIVERY = Delivery(TelegramHandler(os.environ.get('telegram_token')))
 
 
 def fetch_new_threads(board_feed, subscription):
@@ -28,7 +27,10 @@ def fetch_new_threads(board_feed, subscription):
         return []
 
 
-def notifier(board_feed=BOARD_FEED, delivery=DELIVERY):
+def notifier(board_feed=BOARD_FEED, delivery=None):
+    if delivery is None:
+        delivery = Delivery(TelegramHandler(os.environ.get('telegram_token')))
+
     users = get_users()
 
     # Each board and threshold is fetched once, shared by its subscribers
