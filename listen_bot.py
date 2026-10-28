@@ -1,17 +1,17 @@
 import os
-import traceback
 
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
+    ApplicationHandlerStop,
     CallbackQueryHandler,
     CommandHandler,
     Defaults,
+    TypeHandler,
 )
+from lib.utils.config import ADMIN_MODE, MAX_BOARDS, THRESHOLDS
 from lib.utils.tools import (
-    MAX_BOARDS,
-    THRESHOLDS,
     initial_user,
     check_if_user_exist,
     is_valid_board,
@@ -22,7 +22,7 @@ from lib.utils.tools import (
     remove_user,
     update_user_name,
 )
-from lib.utils.logger import log
+from lib.utils.logger import log_error, log_warning
 from lib.utils.file_path import BOARDS_JSON_PATH
 
 
@@ -103,7 +103,7 @@ async def board_register(update, context):
     await update.callback_query.answer()
     fields = parse_callback(update.callback_query.data, 1)
     if fields is None or not is_valid_board(fields[0]):
-        log(f'Invalid callback data: {update.callback_query.data!r}')
+        log_warning(f'Invalid callback data: {update.callback_query.data!r}')
         return
 
     board = fields[0]
@@ -118,7 +118,7 @@ async def delete_board(update, context):
     # were later removed from boards.json, and removal only pops a dict key
     fields = parse_callback(update.callback_query.data, 1)
     if fields is None:
-        log(f'Invalid callback data: {update.callback_query.data!r}')
+        log_warning(f'Invalid callback data: {update.callback_query.data!r}')
         return
 
     board = fields[0]
@@ -130,7 +130,12 @@ async def delete_board(update, context):
         await update.callback_query.message.edit_text(not_registered_message())
         return
 
-    remove_board(uid, board)
+    if not remove_board(uid, board):
+        await update.callback_query.message.edit_text(
+            board_not_subscribed_message(board)
+        )
+        return
+
     await update.callback_query.message.edit_text(
         delete_confirm_message(name, board)
     )
@@ -144,7 +149,7 @@ async def confirm_and_write(update, context):
         or not is_valid_board(fields[0])
         or fields[1] not in THRESHOLDS
     ):
-        log(f'Invalid callback data: {update.callback_query.data!r}')
+        log_warning(f'Invalid callback data: {update.callback_query.data!r}')
         return
 
     board, threshold = fields
@@ -173,7 +178,7 @@ async def page_turner(update, context):
         or not fields[0].isdigit()
         or int(fields[0]) not in pages
     ):
-        log(f'Invalid callback data: {update.callback_query.data!r}')
+        log_warning(f'Invalid callback data: {update.callback_query.data!r}')
         return
 
     page = int(fields[0])
@@ -190,13 +195,17 @@ async def _get_users(update, context):
             await update.message.reply_text(message)
 
 
+async def admin_only(update, context):
+    """Drop every update not sent by the admin, before other handlers run."""
+    user = update.effective_user
+    if user is None or str(user.id) != os.environ.get("admin_id"):
+        raise ApplicationHandlerStop
+
+
 async def error(update, context):
     # Log only the update id; the full update holds user names and messages
     update_id = getattr(update, 'update_id', None)
-    log(
-        f'Update {update_id} caused error:',
-        ''.join(traceback.format_exception(context.error)),
-    )
+    log_error(f'Update {update_id} caused error:', exc_info=context.error)
 
 
 def parse_callback(data, size):
@@ -319,6 +328,10 @@ def delete_confirm_message(name, infos):
     return f'恭喜！{name}成功的將{infos}刪除！'
 
 
+def board_not_subscribed_message(board):
+    return f'你沒有訂閱{board}版，不需要刪除'
+
+
 def user_message(name, boards):
     message = f'嗨！{name}，你目前訂閱以下的板\n\n'
     for board in boards:
@@ -358,6 +371,9 @@ def build_application(timezone):
         .defaults(Defaults(tzinfo=timezone))
         .build()
     )
+    if ADMIN_MODE:
+        # Group -1 runs before the default group 0 handlers
+        application.add_handler(TypeHandler(Update, admin_only), group=-1)
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('me', me))
     application.add_handler(CommandHandler('add', add))

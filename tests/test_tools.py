@@ -6,8 +6,8 @@ def test_remove_board_ignores_missing_board(monkeypatch, tmp_path):
     tools.initial_user(1, 'tester')
     tools.add_or_update_board(1, 'Test', '10')
 
-    tools.remove_board(1, 'Test')
-    tools.remove_board(1, 'Test')
+    assert tools.remove_board(1, 'Test')
+    assert not tools.remove_board(1, 'Test')
 
     assert tools.get_users()['1']['boards'] == {}
 

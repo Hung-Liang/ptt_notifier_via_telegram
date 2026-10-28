@@ -48,7 +48,7 @@ def make_callback_update(data, uid=1):
 @pytest.mark.parametrize('data', ['Delete', 'Delete,A,B'])
 def test_delete_board_rejects_invalid_callback(monkeypatch, data):
     removed = []
-    monkeypatch.setattr(listen_bot, 'log', lambda *args: None)
+    monkeypatch.setattr(listen_bot, 'log_warning', lambda *args: None)
     monkeypatch.setattr(
         listen_bot, 'remove_board', lambda *args: removed.append(args)
     )
@@ -64,20 +64,38 @@ def test_delete_board_removes_board(monkeypatch):
     removed = []
     monkeypatch.setattr(listen_bot, 'check_if_user_exist', lambda uid: True)
     monkeypatch.setattr(
-        listen_bot, 'remove_board', lambda *args: removed.append(args)
+        listen_bot,
+        'remove_board',
+        lambda *args: removed.append(args) or True,
     )
     update = make_callback_update('Delete,Gossiping')
 
     asyncio.run(listen_bot.delete_board(update, None))
 
     assert removed == [(1, 'Gossiping')]
-    assert len(update.callback_query.message.edits) == 1
+    assert update.callback_query.message.edits == [
+        listen_bot.delete_confirm_message('tester', 'Gossiping')
+    ]
+
+
+def test_delete_board_reports_missing_board(monkeypatch):
+    monkeypatch.setattr(listen_bot, 'check_if_user_exist', lambda uid: True)
+    monkeypatch.setattr(listen_bot, 'remove_board', lambda *args: False)
+    update = make_callback_update('Delete,Gossiping')
+
+    asyncio.run(listen_bot.delete_board(update, None))
+
+    assert update.callback_query.message.edits == [
+        listen_bot.board_not_subscribed_message('Gossiping')
+    ]
 
 
 def test_error_logs_traceback_without_update_details(monkeypatch):
     logged = []
     monkeypatch.setattr(
-        listen_bot, 'log', lambda *args: logged.append(' '.join(args))
+        listen_bot,
+        'log_error',
+        lambda *args, exc_info: logged.append((' '.join(args), exc_info)),
     )
 
     try:
@@ -88,9 +106,10 @@ def test_error_logs_traceback_without_update_details(monkeypatch):
     update = SimpleNamespace(update_id=7, message='secret text')
     asyncio.run(listen_bot.error(update, context))
 
-    assert 'Update 7' in logged[0]
-    assert 'Traceback' in logged[0] and 'boom' in logged[0]
-    assert 'secret text' not in logged[0]
+    message, exc_info = logged[0]
+    assert 'Update 7' in message
+    assert exc_info is context.error
+    assert 'secret text' not in message
 
 
 def test_users_messages_joins_users_under_limit():
@@ -131,7 +150,7 @@ def added(monkeypatch):
         added.append(args)
         return True
 
-    monkeypatch.setattr(listen_bot, 'log', lambda *args: None)
+    monkeypatch.setattr(listen_bot, 'log_warning', lambda *args: None)
     monkeypatch.setattr(listen_bot, 'check_if_user_exist', lambda uid: True)
     monkeypatch.setattr(listen_bot, 'add_or_update_board', add_or_update_board)
     return added
@@ -199,7 +218,7 @@ def test_confirm_and_write_saves_board(boards, added):
     'data', ['Page', 'Page,1,2', 'Page,x', 'Page,-1', 'Page,0', 'Page,4']
 )
 def test_page_turner_rejects_invalid_callback(monkeypatch, boards, data):
-    monkeypatch.setattr(listen_bot, 'log', lambda *args: None)
+    monkeypatch.setattr(listen_bot, 'log_warning', lambda *args: None)
     update = make_callback_update(data)
 
     asyncio.run(listen_bot.page_turner(update, None))
@@ -258,3 +277,29 @@ def test_build_application_has_job_queue(monkeypatch):
     # The notifier is scheduled on this queue, which needs APScheduler
     assert application.job_queue is not None
     assert application.job_queue.scheduler.timezone == timezone
+
+
+@pytest.mark.parametrize('user', [None, SimpleNamespace(id=2)])
+def test_admin_only_drops_other_users(monkeypatch, user):
+    monkeypatch.setenv('admin_id', '1')
+    update = SimpleNamespace(effective_user=user)
+
+    with pytest.raises(listen_bot.ApplicationHandlerStop):
+        asyncio.run(listen_bot.admin_only(update, None))
+
+
+def test_admin_only_passes_admin(monkeypatch):
+    monkeypatch.setenv('admin_id', '1')
+    update = SimpleNamespace(effective_user=SimpleNamespace(id=1))
+
+    asyncio.run(listen_bot.admin_only(update, None))
+
+
+@pytest.mark.parametrize('admin_mode', [True, False])
+def test_build_application_admin_filter(monkeypatch, admin_mode):
+    monkeypatch.setenv('telegram_token', '123:test')
+    monkeypatch.setattr(listen_bot, 'ADMIN_MODE', admin_mode)
+
+    application = listen_bot.build_application(ZoneInfo('Asia/Taipei'))
+
+    assert (-1 in application.handlers) == admin_mode

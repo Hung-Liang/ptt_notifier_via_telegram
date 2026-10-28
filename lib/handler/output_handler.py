@@ -1,7 +1,11 @@
 import html
 
 from bs4 import BeautifulSoup
+from lib.utils.config import MAX_PAGE
 from lib.utils.tools import load_json, save_json
+
+# PTT search lists 20 threads per page
+THREADS_PER_FETCH = MAX_PAGE * 20
 
 
 def parse_title_text(title_text: str):
@@ -49,10 +53,10 @@ def update_old_threads(old_threads_path: str, new_threads: list):
     old_threads = load_json(old_threads_path)
     old_threads.extend(new_threads)
 
-    # Keep well above one fetch (5 pages x 20 threads) so threads still
-    # visible in search results are not trimmed and re-sent
-    if len(old_threads) > 300:
-        old_threads = old_threads[-200:]
+    # Keep well above one fetch (`MAX_PAGE` pages x 20 threads) so threads
+    # still visible in search results are not trimmed and re-sent
+    if len(old_threads) > THREADS_PER_FETCH * 3:
+        old_threads = old_threads[-THREADS_PER_FETCH * 2 :]
 
     save_json(old_threads_path, old_threads)
 

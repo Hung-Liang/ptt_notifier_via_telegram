@@ -110,7 +110,9 @@ def test_fetch_failure_skips_only_that_board(env, monkeypatch):
     monkeypatch.setattr(
         notifier_module, 'get_new_threads', fake_get_new_threads
     )
-    monkeypatch.setattr(notifier_module, 'log', lambda *args: None)
+    monkeypatch.setattr(
+        notifier_module, 'log_error', lambda *args, **kwargs: None
+    )
 
     notifier_module.notifier()
 

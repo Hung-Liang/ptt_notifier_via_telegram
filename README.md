@@ -18,6 +18,12 @@ uv sync
     telegram_token="Telegram機器人Token"
     admin_id="ADMIN的Telegram ID"
     ```
+    - 選填設定（括號內為預設值）
+        - `notify_interval`：通知間隔分鐘數，1~60（30）
+        - `max_page`：每次每個看板抓取的搜尋頁數（5）
+        - `max_boards`：每人最多訂閱看板數（10）
+        - `thresholds`：可選的推文數門檻，以逗號分隔，`100`顯示為「爆」（`10,20,30,50,70,100`）
+        - `admin_mode`：設為`true`時只接受`admin_id`的指令，其他人的指令一律忽略（`false`）
 
 
 ### 啟動

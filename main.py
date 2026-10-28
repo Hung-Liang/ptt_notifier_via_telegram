@@ -3,6 +3,7 @@ from datetime import time
 from zoneinfo import ZoneInfo
 
 from lib.notifier import notifier
+from lib.utils.config import NOTIFY_INTERVAL
 from lib.utils.logger import remove_old_logs
 from listen_bot import build_application
 
@@ -12,8 +13,6 @@ def get_interval_str(interval):
 
 
 timezone = ZoneInfo('Asia/Taipei')
-
-interval = 30
 
 
 async def notifier_job(context):
@@ -36,7 +35,7 @@ def main():
         notifier_job,
         job_kwargs={
             'trigger': 'cron',
-            'minute': get_interval_str(interval),
+            'minute': get_interval_str(NOTIFY_INTERVAL),
             'misfire_grace_time': 30,
         },
     )

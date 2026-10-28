@@ -8,6 +8,7 @@ from lib.handler.output_handler import (
     find_thread_info,
     update_old_threads,
 )
+from lib.utils.config import MAX_PAGE
 from lib.utils.file_path import BOARDS_PATH
 from lib.utils.tools import load_json, save_json
 
@@ -31,7 +32,7 @@ def fetch(url: str):
     return res.text
 
 
-def get_ptt_title_and_url(board: str, likes: int, max_page: int = 5):
+def get_ptt_title_and_url(board: str, likes: int, max_page: int = MAX_PAGE):
     """Get the title and url of the PTT threads.
 
     Stops early when a page is missing or empty, keeping the threads
@@ -41,7 +42,8 @@ def get_ptt_title_and_url(board: str, likes: int, max_page: int = 5):
         `board`: The name of the board.
         `likes`: The number of likes.
             Search for threads with more than this number of likes.
-        `max_page`: The maximum number of pages to fetch. Defaults to 5.
+        `max_page`: The maximum number of pages to fetch. Defaults to
+            `MAX_PAGE`.
 
     Returns:
         list: The list of the title and url of the PTT threads.

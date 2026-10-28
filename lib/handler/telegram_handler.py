@@ -5,7 +5,7 @@ import time
 import requests
 from dotenv import load_dotenv
 
-from lib.utils.logger import log
+from lib.utils.logger import log, log_warning
 
 load_dotenv()
 
@@ -85,14 +85,16 @@ class TelegramHandler:
             retry_after = get_retry_after(res.text)
             if retry_after is None or retry_after > MAX_RETRY_AFTER:
                 break
-            log('[telegram_lib]', f'rate limited, retry in {retry_after}s')
+            log_warning(
+                '[telegram_lib]', f'rate limited, retry in {retry_after}s'
+            )
             time.sleep(retry_after)
 
         if res.status_code == 200:
             log('[telegram_lib]', f'send message to {cid}: 200')
             return True
 
-        log(
+        log_warning(
             '[telegram_lib]',
             f'send message to {cid}: {res.status_code} {res.text}',
         )

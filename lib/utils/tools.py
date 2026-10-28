@@ -3,10 +3,8 @@ import os
 import threading
 from pathlib import Path
 
+from lib.utils.config import MAX_BOARDS
 from lib.utils.file_path import BOARDS_JSON_PATH, USER_JSON_PATH
-
-THRESHOLDS = ('10', '20', '30', '50', '70', '100')
-MAX_BOARDS = 10
 
 
 def get_users():
@@ -141,12 +139,19 @@ def remove_board(uid, board):
     Args:
         `uid` : user id.
         `board` : board to remove.
+
+    Returns:
+        `bool` : False if the user was not subscribed to the board.
     """
     with users_lock:
         users = get_users()
+        boards = users[str(uid)]['boards']
         # The board may already be gone if an old delete keyboard is reused
-        users[str(uid)]['boards'].pop(board, None)
+        if board not in boards:
+            return False
+        del boards[board]
         save_json(USER_JSON_PATH, users)
+    return True
 
 
 def remove_user(uid):

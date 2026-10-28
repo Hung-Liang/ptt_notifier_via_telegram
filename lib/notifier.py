@@ -1,4 +1,3 @@
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 from lib.handler.output_handler import create_board_message_with_threads
@@ -13,7 +12,7 @@ from lib.handler.telegram_handler import (
     TelegramSendError,
 )
 from lib.utils.file_path import HEARTBEAT_PATH
-from lib.utils.logger import log
+from lib.utils.logger import log, log_error, log_warning
 from lib.utils.tools import get_users, remove_user
 
 
@@ -26,7 +25,7 @@ def fetch_new_threads(board_and_like):
         return get_new_threads(*board_and_like)
     except Exception:
         # Skip this board so one failure doesn't block others
-        log('[notifier]', board_and_like, traceback.format_exc())
+        log_error('[notifier]', board_and_like, exc_info=True)
         return []
 
 
@@ -67,12 +66,12 @@ def notifier():
             if not TelegramHandler().send_multiple_messages(
                 uid, [message for message, _ in messages]
             ):
-                log('[notifier]', f'{uid} rejected some messages')
+                log_warning('[notifier]', f'{uid} rejected some messages')
         except TelegramBlockedError:
             log('[notifier]', f'{uid} blocked the bot, removing user')
             remove_user(uid)
         except TelegramSendError as e:
-            log('[notifier]', f'{uid} send failed, retry next run: {e}')
+            log_error('[notifier]', f'{uid} send failed, retry next run: {e}')
             failed_threads.update(
                 (board, users[uid]["boards"][board], thread[2])
                 for _, message_threads in messages[e.sent :]

@@ -32,13 +32,17 @@ _logger = logging.getLogger('ptt_notifier')
 
 if not _logger.handlers:
     _formatter = logging.Formatter(
-        '%(asctime)s %(message)s', '%Y-%m-%d %H:%M:%S'
+        '%(asctime)s %(levelname)s %(message)s', '%Y-%m-%d %H:%M:%S'
     )
     for _handler in (DailyFileHandler(), logging.StreamHandler(sys.stdout)):
         _handler.setFormatter(_formatter)
         _logger.addHandler(_handler)
     _logger.setLevel(logging.INFO)
     _logger.propagate = False
+
+
+def _join(messages):
+    return ' '.join(str(message) for message in messages)
 
 
 def log(*messages, return_filename: bool = False):
@@ -48,10 +52,26 @@ def log(*messages, return_filename: bool = False):
         `messages`: Logging message.
     """
 
-    _logger.info(' '.join(str(message) for message in messages))
+    _logger.info(_join(messages))
 
     if return_filename:
         return DailyFileHandler.get_filename(datetime.now().timestamp())
+
+
+def log_warning(*messages):
+    """Log something unexpected that the program recovered from."""
+    _logger.warning(_join(messages))
+
+
+def log_error(*messages, exc_info=None):
+    """Log a failure.
+
+    Args:
+        `messages`: Logging message.
+        `exc_info`: Exception to attach the traceback of, or True for the
+            one being handled.
+    """
+    _logger.error(_join(messages), exc_info=exc_info)
 
 
 def remove_old_logs(days: int = LOG_RETENTION_DAYS):

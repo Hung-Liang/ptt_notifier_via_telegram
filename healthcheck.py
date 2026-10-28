@@ -7,10 +7,11 @@ means the bot process is alive.
 import sys
 import time
 
+from lib.utils.config import NOTIFY_INTERVAL
 from lib.utils.file_path import HEARTBEAT_PATH
 
-# Notifier runs every 30 minutes; allow some slack for slow runs
-MAX_HEARTBEAT_AGE = 35 * 60
+# Allow some slack past the notifier interval for slow runs
+MAX_HEARTBEAT_AGE = (NOTIFY_INTERVAL + 5) * 60
 
 
 def main():
