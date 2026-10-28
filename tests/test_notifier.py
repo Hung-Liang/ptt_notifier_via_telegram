@@ -133,3 +133,25 @@ def test_subscriptions_are_fetched_concurrently(env, monkeypatch):
     notifier_module.notifier()
 
     assert sorted(env['marked']) == ['Other', 'Test']
+
+
+def test_partial_send_keeps_only_unsent_threads_unseen(env, monkeypatch):
+    env['users'] = {
+        '1': {'name': 'a', 'boards': {'Test': '10', 'Other': '10'}}
+    }
+    error = TelegramSendError('timeout')
+    error.sent = 1
+    env['send']['1'] = error
+    # Each board lands in its own message; only the first one was sent
+    monkeypatch.setattr(
+        notifier_module,
+        'create_board_message_with_threads',
+        lambda threads: [
+            (board, [(board, thread) for thread in threads[board]])
+            for board in threads
+        ],
+    )
+
+    notifier_module.notifier()
+
+    assert env['marked'] == ['Test']

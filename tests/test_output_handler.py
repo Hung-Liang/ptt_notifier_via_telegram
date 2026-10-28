@@ -1,4 +1,7 @@
-from lib.handler.output_handler import create_board_message
+from lib.handler.output_handler import (
+    create_board_message,
+    create_board_message_with_threads,
+)
 
 
 def make_threads(board, count, title_length):
@@ -51,3 +54,21 @@ def test_board_header_overflow_does_not_duplicate_content():
     assert joined.count('/bbs/Second/M.0.A.html') == 1
     assert '<b>SECOND</b>' in messages[-1]
     assert all(len(message) < 4096 for message in messages)
+
+
+def test_threads_are_tracked_per_message():
+    threads = {
+        'First': make_threads('First', 60, 80),
+        'Second': make_threads('Second', 2, 10),
+    }
+
+    messages = create_board_message_with_threads(threads)
+
+    assert len(messages) > 1
+    tracked = [pair for _, pairs in messages for pair in pairs]
+    assert tracked == [
+        (board, thread) for board in threads for thread in threads[board]
+    ]
+    for message, pairs in messages:
+        for _, thread in pairs:
+            assert thread[2] in message

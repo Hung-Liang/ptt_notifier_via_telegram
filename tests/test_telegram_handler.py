@@ -93,3 +93,72 @@ def test_other_forbidden_errors_are_not_treated_as_blocked(monkeypatch):
     )
 
     assert make_handler().send_message(42, 'hi') is False
+
+
+def rate_limited(retry_after):
+    return FakeResponse(
+        429,
+        '{"ok":false,"error_code":429,"description":"Too Many Requests",'
+        f'"parameters":{{"retry_after":{retry_after}}}}}',
+    )
+
+
+def test_rate_limit_waits_and_retries(monkeypatch):
+    responses = [rate_limited(3), FakeResponse()]
+    sleeps = []
+    monkeypatch.setattr(
+        telegram_handler.requests,
+        'post',
+        lambda url, json, timeout: responses.pop(0),
+    )
+    monkeypatch.setattr(telegram_handler.time, 'sleep', sleeps.append)
+
+    assert make_handler().send_message(42, 'hi') is True
+    assert sleeps == [3]
+
+
+def test_rate_limit_gives_up_after_retries(monkeypatch):
+    posts = []
+
+    def fake_post(url, json, timeout):
+        posts.append(url)
+        return rate_limited(1)
+
+    monkeypatch.setattr(telegram_handler.requests, 'post', fake_post)
+    monkeypatch.setattr(telegram_handler.time, 'sleep', lambda seconds: None)
+
+    with pytest.raises(TelegramSendError):
+        make_handler().send_message(42, 'hi')
+
+    assert len(posts) == telegram_handler.MAX_RATE_LIMIT_RETRIES + 1
+
+
+def test_long_rate_limit_is_not_waited(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(
+        telegram_handler.requests,
+        'post',
+        lambda url, json, timeout: rate_limited(
+            telegram_handler.MAX_RETRY_AFTER + 1
+        ),
+    )
+    monkeypatch.setattr(telegram_handler.time, 'sleep', sleeps.append)
+
+    with pytest.raises(TelegramSendError):
+        make_handler().send_message(42, 'hi')
+
+    assert sleeps == []
+
+
+def test_send_multiple_messages_reports_sent_count(monkeypatch):
+    responses = [FakeResponse(), FakeResponse(502, 'Bad Gateway')]
+    monkeypatch.setattr(
+        telegram_handler.requests,
+        'post',
+        lambda url, json, timeout: responses.pop(0),
+    )
+
+    with pytest.raises(TelegramSendError) as exc_info:
+        make_handler().send_multiple_messages(42, ['a', 'b', 'c'])
+
+    assert exc_info.value.sent == 1

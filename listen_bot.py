@@ -363,15 +363,17 @@ def build_application(timezone):
     application.add_handler(CommandHandler('add', add))
     application.add_handler(CommandHandler('delete', delete))
     application.add_handler(CommandHandler('delete_me', delete_me))
-    application.add_handler(CallbackQueryHandler(page_turner, pattern='Page'))
     application.add_handler(
-        CallbackQueryHandler(board_register, pattern='Board')
+        CallbackQueryHandler(page_turner, pattern='^Page,')
     )
     application.add_handler(
-        CallbackQueryHandler(confirm_and_write, pattern='Confirm')
+        CallbackQueryHandler(board_register, pattern='^Board,')
     )
     application.add_handler(
-        CallbackQueryHandler(delete_board, pattern='Delete')
+        CallbackQueryHandler(confirm_and_write, pattern='^Confirm,')
+    )
+    application.add_handler(
+        CallbackQueryHandler(delete_board, pattern='^Delete,')
     )
     application.add_handler(CommandHandler('users', _get_users))
     application.add_error_handler(error)
