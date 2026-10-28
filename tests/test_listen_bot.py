@@ -1,5 +1,6 @@
 import asyncio
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -246,3 +247,14 @@ def test_page_keyboard_maker_board_buttons(boards):
         for button in row
     ]
     assert callbacks == ['Board,A', 'Board,B', 'Board,C']
+
+
+def test_build_application_has_job_queue(monkeypatch):
+    monkeypatch.setenv('telegram_token', '123:test')
+    timezone = ZoneInfo('Asia/Taipei')
+
+    application = listen_bot.build_application(timezone)
+
+    # The notifier is scheduled on this queue, which needs APScheduler
+    assert application.job_queue is not None
+    assert application.job_queue.scheduler.timezone == timezone

@@ -11,9 +11,8 @@ LOG_RETENTION_DAYS = 30
 class DailyFileHandler(logging.Handler):
     """Append each record to `LOG_PATH/YYYY-MM-DD.log`.
 
-    The scheduler and listen_bot run as separate processes writing to the
-    same files, so files are opened per record in append mode instead of
-    using TimedRotatingFileHandler, whose rotation is not multi-process safe.
+    Files are named by date only, unlike TimedRotatingFileHandler, so
+    `remove_old_logs` can tell their age from the name.
     """
 
     def emit(self, record):

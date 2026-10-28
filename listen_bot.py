@@ -3,7 +3,12 @@ import traceback
 
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    Defaults,
+)
 from lib.utils.tools import (
     MAX_BOARDS,
     THRESHOLDS,
@@ -341,9 +346,17 @@ def no_board_message():
     return '你目前沒有訂閱任何看板，可以使用 /add 新增'
 
 
-def main():
+def build_application(timezone):
+    """Build the bot with every handler registered.
+
+    Args:
+        `timezone`: Timezone the job queue schedules jobs in.
+    """
     application = (
-        Application.builder().token(os.environ.get("telegram_token")).build()
+        Application.builder()
+        .token(os.environ.get("telegram_token"))
+        .defaults(Defaults(tzinfo=timezone))
+        .build()
     )
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('me', me))
@@ -363,8 +376,4 @@ def main():
     application.add_handler(CommandHandler('users', _get_users))
     application.add_error_handler(error)
 
-    application.run_polling()
-
-
-if __name__ == '__main__':
-    main()
+    return application
