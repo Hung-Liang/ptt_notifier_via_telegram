@@ -12,7 +12,7 @@ from lib.utils.tools import (
     add_or_update_board,
     get_users,
 )
-from lib.utils.file_path import USER_JSON_PATH
+from lib.utils.file_path import BOARDS_JSON_PATH, USER_JSON_PATH
 
 
 load_dotenv()
@@ -119,7 +119,7 @@ def error(update, context):
 
 
 def page_keyboard_maker(page):
-    boards = load_json('boards', '')
+    boards = load_json(BOARDS_JSON_PATH)
 
     pages = boards[str(page)]
 
