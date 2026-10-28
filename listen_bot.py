@@ -21,9 +21,9 @@ load_dotenv()
 
 def start(bot, update):
     uid = bot.message.from_user.id
+    name = bot.message.from_user.name
 
-    if check_if_user_exist(uid):
-        name = bot.message.from_user.name
+    if not check_if_user_exist(uid):
         initial_user(uid, name)
 
         bot.message.reply_text(start_message(name))
