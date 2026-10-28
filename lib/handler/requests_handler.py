@@ -28,7 +28,7 @@ def fetch(url: str):
 
 
 def get_ptt_title_and_url(
-    board: str, likes: int, page: int = 1, max_page: int = 1
+    board: str, likes: int, page: int = 1, max_page: int = 5
 ):
     """Get the title and url of the PTT threads.
 
@@ -48,7 +48,7 @@ def get_ptt_title_and_url(
     soup = BeautifulSoup(fetch(url), 'lxml')
     threads = find_thread_info(soup)
 
-    if page <= max_page:
+    if page < max_page:
         threads += get_ptt_title_and_url(board, likes, page + 1, max_page)
 
     return threads

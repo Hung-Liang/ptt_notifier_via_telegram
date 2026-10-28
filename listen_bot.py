@@ -117,10 +117,8 @@ def page_keyboard_maker(page):
 
     keyboard = [
         [
-            InlineKeyboardButton(pages[i], callback_data='Board,' + pages[i]),
-            InlineKeyboardButton(
-                pages[i + 1], callback_data='Board,' + pages[i + 1]
-            ),
+            InlineKeyboardButton(board, callback_data='Board,' + board)
+            for board in pages[i : i + 2]
         ]
         for i in range(0, len(pages), 2)
     ]

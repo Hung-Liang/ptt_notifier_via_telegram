@@ -53,8 +53,10 @@ def update_old_threads(old_threads_path: str, new_threads: list):
     old_threads = load_json(old_threads_path)
     old_threads.extend(new_threads)
 
+    # Keep well above one fetch (5 pages x 20 threads) so threads still
+    # visible in search results are not trimmed and re-sent
     if len(old_threads) > 300:
-        old_threads = old_threads[-100:]
+        old_threads = old_threads[-200:]
 
     save_json(old_threads_path, old_threads)
 
@@ -99,10 +101,13 @@ def create_board_message(threads):
         if len(threads[board]) == 0:
             continue
 
-        if len(message + f'<b>{board.upper()}</b>\n{split_line}') >= 4096:
+        header = f'<b>{board.upper()}</b>\n{split_line}'
+
+        if len(message + header) >= 4096:
             messages.append(message)
-        else:
-            message += f'<b>{board.upper()}</b>\n{split_line}'
+            message = ''
+
+        message += header
 
         for thread in threads[board]:
             new_message = (
@@ -112,7 +117,7 @@ def create_board_message(threads):
 
             if len(new_message + message) >= 4096:
                 messages.append(message)
-                message = f'<b>{board.upper()}</b>\n{split_line}'
+                message = header
 
             message += new_message
 
