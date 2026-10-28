@@ -15,7 +15,7 @@ pip install -r requirements.txt
     - 在根目錄設定檔案名為`.env`的檔案
     - 範例
     ```
-    tg_token="Telegram機器人Token"
+    telegram_token="Telegram機器人Token"
     admin_id="ADMIN的Telegram ID"
     ```
 
@@ -30,7 +30,7 @@ pip install -r requirements.txt
 - `/me` 顯示你訂閱的看板
 - `/add` 增加你訂閱的看板，並設定閥值
 - `/delete` 刪除某個你訂閱的看板
-- `/deleteMe` 刪除自己在機器人Host端的資料
+- `/delete_me` 刪除自己在機器人Host端的資料
 - `/stop` 停止機器人 //ADMIN專用指令
 - `/users` 查看目前用戶 //ADMIN專用指令
 
