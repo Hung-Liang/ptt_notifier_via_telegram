@@ -1,0 +1,9 @@
+.git
+.venv
+.env
+.ruff_cache
+**/__pycache__
+logs
+assets/user.json
+assets/boards
+assets/user.lock

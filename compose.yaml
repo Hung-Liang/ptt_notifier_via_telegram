@@ -1,0 +1,10 @@
+services:
+  notifier:
+    build: .
+    image: ptt-notifier-via-telegram
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      # user.json, boards/ and boards.json live here
+      - ./assets:/app/assets
+      - ./logs:/app/logs
