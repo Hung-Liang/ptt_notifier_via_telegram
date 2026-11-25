@@ -10,18 +10,10 @@ from telegram.ext import (
     TypeHandler,
 )
 from lib.utils.config import ADMIN_MODE, MAX_BOARDS, THRESHOLDS
-from lib.utils.tools import (
-    initial_user,
-    check_if_user_exist,
-    is_valid_board,
-    load_json,
-    add_or_update_board,
-    get_users,
-    remove_board,
-    remove_user,
-    update_user_name,
-)
-from lib.utils.logger import log_error, log_warning
+from lib.handler.callback_data import BOARD, CONFIRM, DELETE, PAGE
+from lib.handler.subscription_store import STORE, Outcome
+from lib.utils.tools import get_page_numbers, load_json
+from lib.utils.logger import log_error
 from lib.utils.message import pack_texts
 from lib.utils.file_path import BOARDS_JSON_PATH
 
@@ -30,17 +22,14 @@ async def start(update, context):
     uid = update.message.from_user.id
     name = update.message.from_user.name
 
-    if not check_if_user_exist(uid):
-        initial_user(uid, name)
-
+    if STORE.register(uid, name):
         await update.message.reply_text(start_message(name))
     else:
-        update_user_name(uid, name)
         await update.message.reply_text(already_register_message(name))
 
 
 async def add(update, context):
-    if not check_if_user_exist(update.message.from_user.id):
+    if STORE.boards_of(update.message.from_user.id) is None:
         await update.message.reply_text(not_registered_message())
         return
 
@@ -51,13 +40,11 @@ async def add(update, context):
 
 
 async def delete(update, context):
-    uid = update.message.from_user.id
-    if not check_if_user_exist(uid):
+    boards = STORE.boards_of(update.message.from_user.id)
+    if boards is None:
         await update.message.reply_text(not_registered_message())
         return
 
-    users = get_users()
-    boards = users[str(uid)]['boards']
     if not boards:
         await update.message.reply_text(no_board_message())
         return
@@ -71,36 +58,32 @@ async def delete(update, context):
 async def me(update, context):
     uid = update.message.from_user.id
     name = update.message.from_user.name
-    if not check_if_user_exist(uid):
+    STORE.refresh_name(uid, name)
+    boards = STORE.boards_of(uid)
+    if boards is None:
         await update.message.reply_text(not_registered_message())
         return
 
-    update_user_name(uid, name)
-    users = get_users()
-    await update.message.reply_text(
-        user_message(name, users[str(uid)]['boards'])
-    )
+    await update.message.reply_text(user_message(name, boards))
 
 
 async def delete_me(update, context):
     uid = update.message.from_user.id
     name = update.message.from_user.name
-    if not check_if_user_exist(uid):
+    if not STORE.remove(uid):
         await update.message.reply_text(not_registered_message())
         return
 
-    remove_user(uid)
     await update.message.reply_text(deleteuser_message(name))
 
 
 async def board_register(update, context):
     await update.callback_query.answer()
-    fields = parse_callback(update.callback_query.data, 1)
-    if fields is None or not is_valid_board(fields[0]):
-        log_warning(f'Invalid callback data: {update.callback_query.data!r}')
+    values = BOARD.decode(update.callback_query.data)
+    if values is None:
         return
 
-    board = fields[0]
+    (board,) = values
     await update.callback_query.message.edit_text(
         choose_message(), reply_markup=select_threshold_keyboard(board)
     )
@@ -108,76 +91,53 @@ async def board_register(update, context):
 
 async def delete_board(update, context):
     await update.callback_query.answer()
-    # Not checked with is_valid_board: users may still hold boards that
-    # were later removed from boards.json, and removal only pops a dict key
-    fields = parse_callback(update.callback_query.data, 1)
-    if fields is None:
-        log_warning(f'Invalid callback data: {update.callback_query.data!r}')
+    values = DELETE.decode(update.callback_query.data)
+    if values is None:
         return
 
-    board = fields[0]
-    uid = update.callback_query.from_user.id
+    (board,) = values
     name = update.callback_query.from_user.name
+    outcome = STORE.unsubscribe(update.callback_query.from_user.id, board)
 
     # Old keyboards stay clickable after /delete_me
-    if not check_if_user_exist(uid):
-        await update.callback_query.message.edit_text(not_registered_message())
-        return
-
-    if not remove_board(uid, board):
-        await update.callback_query.message.edit_text(
-            board_not_subscribed_message(board)
-        )
-        return
-
-    await update.callback_query.message.edit_text(
-        delete_confirm_message(name, board)
-    )
+    if outcome is Outcome.NOT_REGISTERED:
+        text = not_registered_message()
+    elif outcome is Outcome.NOT_SUBSCRIBED:
+        text = board_not_subscribed_message(board)
+    else:
+        text = delete_confirm_message(name, board)
+    await update.callback_query.message.edit_text(text)
 
 
 async def confirm_and_write(update, context):
     await update.callback_query.answer()
-    fields = parse_callback(update.callback_query.data, 2)
-    if (
-        fields is None
-        or not is_valid_board(fields[0])
-        or fields[1] not in THRESHOLDS
-    ):
-        log_warning(f'Invalid callback data: {update.callback_query.data!r}')
+    values = CONFIRM.decode(update.callback_query.data)
+    if values is None:
         return
 
-    board, threshold = fields
-    uid = update.callback_query.from_user.id
+    board, threshold = values
     name = update.callback_query.from_user.name
+    uid = update.callback_query.from_user.id
+    outcome = STORE.subscribe(uid, board, threshold)
 
-    if not check_if_user_exist(uid):
-        await update.callback_query.message.edit_text(not_registered_message())
-        return
-
-    if not add_or_update_board(uid, board, threshold):
-        await update.callback_query.message.edit_text(error_message())
-        return
-
-    await update.callback_query.message.edit_text(
-        confirm_message(name, board, threshold)
-    )
+    if outcome is Outcome.NOT_REGISTERED:
+        text = not_registered_message()
+    elif outcome is Outcome.BOARD_LIMIT:
+        text = error_message()
+    else:
+        text = confirm_message(name, board, threshold)
+    await update.callback_query.message.edit_text(text)
 
 
 async def page_turner(update, context):
     await update.callback_query.answer()
-    fields = parse_callback(update.callback_query.data, 1)
-    pages = get_page_numbers()
-    if (
-        fields is None
-        or not fields[0].isdigit()
-        or int(fields[0]) not in pages
-    ):
-        log_warning(f'Invalid callback data: {update.callback_query.data!r}')
+    values = PAGE.decode(update.callback_query.data)
+    if values is None:
         return
 
-    page = int(fields[0])
+    (page,) = values
     await update.callback_query.message.edit_text(
-        add_message(pages.index(page) + 1),
+        add_message(get_page_numbers().index(page) + 1),
         reply_markup=page_keyboard_maker(page),
     )
 
@@ -185,7 +145,7 @@ async def page_turner(update, context):
 async def _get_users(update, context):
     uid = update.message.from_user.id
     if str(uid) == os.environ.get("admin_id"):
-        for message in users_messages(get_users()):
+        for message in users_messages(STORE.users()):
             await update.message.reply_text(message)
 
 
@@ -202,16 +162,6 @@ async def error(update, context):
     log_error(f'Update {update_id} caused error:', exc_info=context.error)
 
 
-def parse_callback(data, size):
-    """Split callback data into its fields after the prefix.
-
-    Modified clients can send arbitrary callback data, so return None
-    unless there are exactly `size` fields.
-    """
-    fields = data.split(',')[1:]
-    return fields if len(fields) == size else None
-
-
 def users_messages(users):
     """Join every user into as few messages as Telegram allows."""
     entries = []
@@ -226,11 +176,6 @@ def users_messages(users):
     return pack_texts(entries)
 
 
-def get_page_numbers():
-    """Page numbers in boards.json, sorted; they may start at 0 or 1."""
-    return sorted(int(page) for page in load_json(BOARDS_JSON_PATH))
-
-
 def page_keyboard_maker(page):
     boards = load_json(BOARDS_JSON_PATH)
 
@@ -238,7 +183,7 @@ def page_keyboard_maker(page):
 
     keyboard = [
         [
-            InlineKeyboardButton(board, callback_data='Board,' + board)
+            InlineKeyboardButton(board, callback_data=BOARD.encode(board))
             for board in pages[i : i + 2]
         ]
         for i in range(0, len(pages), 2)
@@ -248,11 +193,15 @@ def page_keyboard_maker(page):
 
     if str(page - 1) in boards:
         change_page.append(
-            InlineKeyboardButton('<< 上一頁', callback_data=f'Page,{page-1}')
+            InlineKeyboardButton(
+                '<< 上一頁', callback_data=PAGE.encode(page - 1)
+            )
         )
     if str(page + 1) in boards:
         change_page.append(
-            InlineKeyboardButton('下一頁 >>', callback_data=f'Page,{page+1}')
+            InlineKeyboardButton(
+                '下一頁 >>', callback_data=PAGE.encode(page + 1)
+            )
         )
 
     keyboard.append(change_page)
@@ -265,7 +214,7 @@ def select_threshold_keyboard(data):
         [
             InlineKeyboardButton(
                 '爆' if threshold == '100' else threshold,
-                callback_data=f'Confirm,{data},{threshold}',
+                callback_data=CONFIRM.encode(data, threshold),
             )
             for threshold in THRESHOLDS
         ]
@@ -278,7 +227,7 @@ def delete_board_maker(boards):
 
     keyboard = [
         [
-            InlineKeyboardButton(board, callback_data=f'Delete,{board}')
+            InlineKeyboardButton(board, callback_data=DELETE.encode(board))
             for board in boards[i : i + 2]
         ]
         for i in range(0, len(boards), 2)
@@ -366,16 +315,16 @@ def build_application(timezone):
     application.add_handler(CommandHandler('delete', delete))
     application.add_handler(CommandHandler('delete_me', delete_me))
     application.add_handler(
-        CallbackQueryHandler(page_turner, pattern='^Page,')
+        CallbackQueryHandler(page_turner, pattern=PAGE.pattern)
     )
     application.add_handler(
-        CallbackQueryHandler(board_register, pattern='^Board,')
+        CallbackQueryHandler(board_register, pattern=BOARD.pattern)
     )
     application.add_handler(
-        CallbackQueryHandler(confirm_and_write, pattern='^Confirm,')
+        CallbackQueryHandler(confirm_and_write, pattern=CONFIRM.pattern)
     )
     application.add_handler(
-        CallbackQueryHandler(delete_board, pattern='^Delete,')
+        CallbackQueryHandler(delete_board, pattern=DELETE.pattern)
     )
     application.add_handler(CommandHandler('users', _get_users))
     application.add_error_handler(error)

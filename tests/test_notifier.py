@@ -21,6 +21,17 @@ class FakeBoardFeed:
         self.state['subscribed'] = set(subscriptions_to_keep)
 
 
+class FakeStore:
+    def __init__(self, state):
+        self.state = state
+
+    def users(self):
+        return self.state['users']
+
+    def remove(self, uid):
+        self.state['removed'].append(uid)
+
+
 class FakeDelivery:
     def __init__(self, state):
         self.state = state
@@ -47,10 +58,6 @@ def env(monkeypatch, tmp_path):
         'subscribed': None,
     }
 
-    monkeypatch.setattr(notifier_module, 'get_users', lambda: state['users'])
-    monkeypatch.setattr(
-        notifier_module, 'remove_user', state['removed'].append
-    )
     monkeypatch.setattr(
         notifier_module, 'HEARTBEAT_PATH', tmp_path / '.heartbeat'
     )
@@ -60,7 +67,9 @@ def env(monkeypatch, tmp_path):
 
 def run(env):
     notifier_module.notifier(
-        board_feed=env['feed'], delivery=FakeDelivery(env)
+        board_feed=env['feed'],
+        delivery=FakeDelivery(env),
+        store=FakeStore(env),
     )
 
 

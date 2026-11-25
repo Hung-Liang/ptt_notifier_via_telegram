@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import listen_bot
+from lib.handler import callback_data
+from lib.handler.subscription_store import SubscriptionStore
 from lib.utils import tools
 from lib.utils.message import MESSAGE_LIMIT
 
@@ -46,48 +48,59 @@ def make_callback_update(data, uid=1):
     return SimpleNamespace(callback_query=query)
 
 
-@pytest.mark.parametrize('data', ['Delete', 'Delete,A,B'])
-def test_delete_board_rejects_invalid_callback(monkeypatch, data):
-    removed = []
-    monkeypatch.setattr(listen_bot, 'log_warning', lambda *args: None)
-    monkeypatch.setattr(
-        listen_bot, 'remove_board', lambda *args: removed.append(args)
-    )
-    update = make_callback_update(data)
+@pytest.fixture
+def store(monkeypatch, tmp_path):
+    store = SubscriptionStore(tmp_path / 'user.json')
+    monkeypatch.setattr(listen_bot, 'STORE', store)
+    return store
+
+
+@pytest.fixture
+def registered(store):
+    store.register(1, 'tester')
+    return store
+
+
+def test_delete_board_ignores_invalid_callback(monkeypatch, registered):
+    monkeypatch.setattr(callback_data, 'log_warning', lambda *args: None)
+    registered.subscribe(1, 'Gossiping', '10')
+    update = make_callback_update('Delete,Gossiping,10')
 
     asyncio.run(listen_bot.delete_board(update, None))
 
-    assert removed == []
+    assert registered.boards_of(1) == {'Gossiping': '10'}
     assert update.callback_query.message.edits == []
 
 
-def test_delete_board_removes_board(monkeypatch):
-    removed = []
-    monkeypatch.setattr(listen_bot, 'check_if_user_exist', lambda uid: True)
-    monkeypatch.setattr(
-        listen_bot,
-        'remove_board',
-        lambda *args: removed.append(args) or True,
-    )
+def test_delete_board_removes_board(registered):
+    registered.subscribe(1, 'Gossiping', '10')
     update = make_callback_update('Delete,Gossiping')
 
     asyncio.run(listen_bot.delete_board(update, None))
 
-    assert removed == [(1, 'Gossiping')]
+    assert registered.boards_of(1) == {}
     assert update.callback_query.message.edits == [
         listen_bot.delete_confirm_message('tester', 'Gossiping')
     ]
 
 
-def test_delete_board_reports_missing_board(monkeypatch):
-    monkeypatch.setattr(listen_bot, 'check_if_user_exist', lambda uid: True)
-    monkeypatch.setattr(listen_bot, 'remove_board', lambda *args: False)
+def test_delete_board_reports_missing_board(registered):
     update = make_callback_update('Delete,Gossiping')
 
     asyncio.run(listen_bot.delete_board(update, None))
 
     assert update.callback_query.message.edits == [
         listen_bot.board_not_subscribed_message('Gossiping')
+    ]
+
+
+def test_delete_board_requires_registration(store):
+    update = make_callback_update('Delete,Gossiping')
+
+    asyncio.run(listen_bot.delete_board(update, None))
+
+    assert update.callback_query.message.edits == [
+        listen_bot.not_registered_message()
     ]
 
 
@@ -143,84 +156,57 @@ def boards(monkeypatch, tmp_path):
     )
 
 
-@pytest.fixture
-def added(monkeypatch):
-    added = []
-
-    def add_or_update_board(*args):
-        added.append(args)
-        return True
-
-    monkeypatch.setattr(listen_bot, 'log_warning', lambda *args: None)
-    monkeypatch.setattr(listen_bot, 'check_if_user_exist', lambda uid: True)
-    monkeypatch.setattr(listen_bot, 'add_or_update_board', add_or_update_board)
-    return added
-
-
-@pytest.mark.parametrize(
-    'data',
-    [
-        'Confirm,A',
-        'Confirm,A,10,20',
-        'Confirm,Unknown,10',
-        'Confirm,../../etc,10',
-        'Confirm,A,15',
-        'Confirm,A,',
-    ],
-)
-def test_confirm_and_write_rejects_invalid_callback(boards, added, data):
-    update = make_callback_update(data)
+def test_confirm_and_write_ignores_invalid_callback(
+    monkeypatch, boards, registered
+):
+    monkeypatch.setattr(callback_data, 'log_warning', lambda *args: None)
+    update = make_callback_update('Confirm,A,15')
 
     asyncio.run(listen_bot.confirm_and_write(update, None))
 
-    assert added == []
+    assert registered.boards_of(1) == {}
     assert update.callback_query.message.edits == []
 
 
-def test_confirm_and_write_requires_registration(
-    monkeypatch, boards, added
-):
-    monkeypatch.setattr(listen_bot, 'check_if_user_exist', lambda uid: False)
+def test_confirm_and_write_requires_registration(boards, store):
     update = make_callback_update('Confirm,A,10')
 
     asyncio.run(listen_bot.confirm_and_write(update, None))
 
-    assert added == []
+    assert store.users() == {}
     assert update.callback_query.message.edits == [
         listen_bot.not_registered_message()
     ]
 
 
-def test_confirm_and_write_reports_board_limit(monkeypatch, boards, added):
-    monkeypatch.setattr(
-        listen_bot, 'add_or_update_board', lambda *args: False
-    )
+def test_confirm_and_write_reports_board_limit(monkeypatch, tmp_path, boards):
+    store = SubscriptionStore(tmp_path / 'user.json', max_boards=0)
+    monkeypatch.setattr(listen_bot, 'STORE', store)
+    store.register(1, 'tester')
     update = make_callback_update('Confirm,A,10')
 
     asyncio.run(listen_bot.confirm_and_write(update, None))
 
+    assert store.boards_of(1) == {}
     assert update.callback_query.message.edits == [
         listen_bot.error_message()
     ]
 
 
-def test_confirm_and_write_saves_board(boards, added):
+def test_confirm_and_write_saves_board(boards, registered):
     update = make_callback_update('Confirm,E,100')
 
     asyncio.run(listen_bot.confirm_and_write(update, None))
 
-    assert added == [(1, 'E', '100')]
+    assert registered.boards_of(1) == {'E': '100'}
     assert update.callback_query.message.edits == [
         listen_bot.confirm_message('tester', 'E', '100')
     ]
 
 
-@pytest.mark.parametrize(
-    'data', ['Page', 'Page,1,2', 'Page,x', 'Page,-1', 'Page,0', 'Page,4']
-)
-def test_page_turner_rejects_invalid_callback(monkeypatch, boards, data):
-    monkeypatch.setattr(listen_bot, 'log_warning', lambda *args: None)
-    update = make_callback_update(data)
+def test_page_turner_ignores_invalid_callback(monkeypatch, boards):
+    monkeypatch.setattr(callback_data, 'log_warning', lambda *args: None)
+    update = make_callback_update('Page,4')
 
     asyncio.run(listen_bot.page_turner(update, None))
 

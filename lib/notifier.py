@@ -4,10 +4,10 @@ from itertools import starmap
 
 from lib.handler.board_feed import BoardFeed, Subscription
 from lib.handler.delivery import Delivery
+from lib.handler.subscription_store import STORE
 from lib.handler.telegram_handler import TelegramHandler
 from lib.utils.file_path import HEARTBEAT_PATH
 from lib.utils.logger import log, log_error
-from lib.utils.tools import get_users, remove_user
 
 # Kept low so a run does not flood PTT with requests
 FETCH_WORKERS = 4
@@ -24,11 +24,11 @@ def fetch_new_threads(board_feed, subscription):
         return []
 
 
-def notifier(board_feed=BOARD_FEED, delivery=None):
+def notifier(board_feed=BOARD_FEED, delivery=None, store=STORE):
     if delivery is None:
         delivery = Delivery(TelegramHandler(os.environ.get('telegram_token')))
 
-    users = get_users()
+    users = store.users()
 
     # Each board and threshold is fetched once, shared by its subscribers
     subscriptions = list(
@@ -64,7 +64,7 @@ def notifier(board_feed=BOARD_FEED, delivery=None):
 
         if result.blocked:
             log('[notifier]', f'{uid} blocked the bot, removing user')
-            remove_user(uid)
+            store.remove(uid)
 
         failed_threads.update(
             (subscription, thread.url)
