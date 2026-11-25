@@ -87,7 +87,9 @@ class BoardFeed:
 
         Raises:
             Fetch errors, e.g. `requests.HTTPError` when the board is
-            wrong, so the caller can skip this Subscription.
+            wrong, or `ValueError` when the first page is not a search
+            result page, so the caller can skip this Subscription without
+            recording a baseline.
         """
         path = self._record_path(subscription)
         threads = self._search(subscription)
@@ -151,6 +153,17 @@ class BoardFeed:
                 if page > 1 and status_code == 404:
                     break
                 raise
+
+            # A 200 maintenance or anti-crawler page would otherwise be
+            # saved as an empty baseline and flood subscribers later
+            if page == 1 and (
+                BeautifulSoup(text, 'lxml').find('div', 'r-list-container')
+                is None
+            ):
+                raise ValueError(
+                    f'{url} is not a PTT search result page: '
+                    'no div.r-list-container'
+                )
 
             page_threads = parse_threads(text)
             if not page_threads:

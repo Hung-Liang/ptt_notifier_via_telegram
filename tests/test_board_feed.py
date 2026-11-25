@@ -13,17 +13,22 @@ def thread(i):
 
 
 def search_page(threads):
-    return ''.join(
-        '<div class="r-ent"><div class="nrec">{}</div>'
-        '<div class="title"><a href="{}">{}</a></div></div>'.format(
-            t.like, t.url, t.title
+    return '<div class="r-list-container">{}</div>'.format(
+        ''.join(
+            '<div class="r-ent"><div class="nrec">{}</div>'
+            '<div class="title"><a href="{}">{}</a></div></div>'.format(
+                t.like, t.url, t.title
+            )
+            for t in threads
         )
-        for t in threads
     )
 
 
 class FakePtt:
-    """Serves `pages` as PTT search pages; missing pages are empty."""
+    """Serves `pages` as PTT search pages; missing pages are empty.
+
+    A str page is served as raw HTML.
+    """
 
     def __init__(self, *pages):
         self.pages = list(pages)
@@ -33,10 +38,12 @@ class FakePtt:
         self.urls.append(url)
         page = int(url.split('page=')[1].split('&')[0])
         if page > len(self.pages):
-            return '<html></html>'
+            return search_page([])
         result = self.pages[page - 1]
         if isinstance(result, Exception):
             raise result
+        if isinstance(result, str):
+            return result
         return search_page(result)
 
 
@@ -115,6 +122,26 @@ def test_missing_page_keeps_fetched_threads(tmp_path):
 
     ptt.pages[:2] = [[thread(1)], [thread(2)]]
     assert feed.new_threads(SUBSCRIPTION) == [thread(1), thread(2)]
+
+
+def test_first_page_not_search_page_raises_without_baseline(tmp_path):
+    feed = make_feed(tmp_path, FakePtt('<html>maintenance</html>'))
+
+    with pytest.raises(ValueError):
+        feed.new_threads(SUBSCRIPTION)
+
+    assert not list(tmp_path.rglob('*.json'))
+
+
+def test_empty_search_page_records_empty_baseline(tmp_path):
+    ptt = FakePtt([])
+    feed = make_feed(tmp_path, ptt)
+
+    assert feed.new_threads(SUBSCRIPTION) == []
+    assert json.loads((tmp_path / 'Test' / 'Test_10.json').read_text()) == []
+
+    ptt.pages = [[thread(1)]]
+    assert feed.new_threads(SUBSCRIPTION) == [thread(1)]
 
 
 @pytest.mark.parametrize('page, status_code', [(1, 404), (2, 500)])
