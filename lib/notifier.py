@@ -2,16 +2,12 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from itertools import starmap
 
-from dotenv import load_dotenv
-
 from lib.handler.board_feed import BoardFeed, Subscription
 from lib.handler.delivery import Delivery
 from lib.handler.telegram_handler import TelegramHandler
 from lib.utils.file_path import HEARTBEAT_PATH
 from lib.utils.logger import log, log_error
 from lib.utils.tools import get_users, remove_user
-
-load_dotenv()
 
 # Kept low so a run does not flood PTT with requests
 FETCH_WORKERS = 4

@@ -12,7 +12,6 @@ def get_users():
 
     Returns:
         `users` : users from user.json file.
-        `boards` : boards from user.json file.
     """
 
     if not Path(USER_JSON_PATH).exists():
@@ -77,10 +76,7 @@ def check_if_user_exist(uid):
     Returns:
         `bool` : True if the user exist, False if not.
     """
-    users = get_users()
-    if str(uid) in users:
-        return True
-    return False
+    return str(uid) in get_users()
 
 
 def initial_user(uid, name):

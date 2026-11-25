@@ -4,6 +4,5 @@ __pycache__/
 /assets/boards
 /logs
 .venv/
-/assets/user.lock
 .scratch/
 .ticket/

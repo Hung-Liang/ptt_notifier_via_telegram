@@ -45,7 +45,7 @@ def _join(messages):
     return ' '.join(str(message) for message in messages)
 
 
-def log(*messages, return_filename: bool = False):
+def log(*messages):
     """Basic Log to Record Progress.
 
     Args:
@@ -53,9 +53,6 @@ def log(*messages, return_filename: bool = False):
     """
 
     _logger.info(_join(messages))
-
-    if return_filename:
-        return DailyFileHandler.get_filename(datetime.now().timestamp())
 
 
 def log_warning(*messages):

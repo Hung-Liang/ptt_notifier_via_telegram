@@ -1,6 +1,5 @@
 import os
 
-from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
@@ -25,9 +24,6 @@ from lib.utils.tools import (
 from lib.utils.logger import log_error, log_warning
 from lib.utils.message import pack_texts
 from lib.utils.file_path import BOARDS_JSON_PATH
-
-
-load_dotenv()
 
 
 async def start(update, context):
